@@ -4,6 +4,6 @@
 	- Framerate counter within scene manager, that has on the fly FPS calculations
 
 - TODO:
-- Raycast
+- Raycast (sin + cos = rot, dist, steps in between dist and center, rects to collide with other rects)
 - GUI system
 - Camera system possibly
