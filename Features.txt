@@ -1,1 +1,9 @@
-- Scene System and Scene Manager
+- Scene System: # Done
+	- Scene interface, that manages drawing and updating to keep games clean
+	- Scene manager that controls variables that switch in between scenes. Can be editted to have constants in between scenes
+	- Framerate counter within scene manager, that has on the fly FPS calculations
+
+- TODO:
+- Raycast
+- GUI system
+- Camera system possibly

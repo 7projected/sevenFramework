@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework.Graphics;
+﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Design.Serialization;
@@ -18,9 +19,12 @@ namespace sevenFramework
     internal class SceneManager
     {
         public IScene scene;
+        public Dictionary<String, Texture2D> textureDictionary;
+        public float fps;
 
         public SceneManager(IScene scene)
         {
+            textureDictionary = new();
             LoadScene(scene);
         }
 
@@ -30,8 +34,9 @@ namespace sevenFramework
             scene.Load(this);
         }
 
-        public void UpdateScene(float dt)
+        public void UpdateScene(float dt, GameTime gametime)
         {
+            fps = (int)(1f / gametime.ElapsedGameTime.TotalSeconds);
             this.scene.Update(dt);
         }
 
