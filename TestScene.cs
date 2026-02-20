@@ -26,8 +26,7 @@ namespace sevenFramework
 
         public void Draw(SpriteBatch sb)
         {
-            Debug.Print($"Draw:{(int)time} @ {(int)sm.fps}");
-
+            sm.debugManager.AddTextToScreen($"Draw:{(int)time} @ {(int)sm.fps}");
             sb.Draw(sm.textureDictionary["pixel"], new Rectangle(0, 0, 32, 32), Color.Red);
         }
     }

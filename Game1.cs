@@ -14,6 +14,7 @@ namespace sevenFramework
         private int displayWidth = 1280;
         private float framerate = 30;
 
+        private SpriteFont debugFont;
         private SceneManager sm;
         private TestScene scene;
         private Texture2D pixel;
@@ -40,8 +41,10 @@ namespace sevenFramework
         {
             _spriteBatch = new SpriteBatch(GraphicsDevice);
 
+            debugFont = Content.Load<SpriteFont>("font");
+
             scene = new();
-            sm = new(scene);
+            sm = new(scene, debugFont);
             sm.textureDictionary.Add("pixel", Content.Load<Texture2D>("pixel"));
         }
 

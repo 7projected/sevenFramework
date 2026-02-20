@@ -6,6 +6,7 @@ using System.ComponentModel.Design.Serialization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace sevenFramework
 {
@@ -21,11 +22,13 @@ namespace sevenFramework
         public IScene scene;
         public Dictionary<String, Texture2D> textureDictionary;
         public float fps;
+        public DebugManager debugManager;
 
-        public SceneManager(IScene scene)
+        public SceneManager(IScene scene, SpriteFont debugFont)
         {
             textureDictionary = new();
             LoadScene(scene);
+            debugManager = new(this, debugFont, Color.White);
         }
 
         public void LoadScene(IScene scene)
@@ -43,6 +46,7 @@ namespace sevenFramework
         public void DrawScene(SpriteBatch sb)
         {
             this.scene.Draw(sb);
+            this.debugManager.DrawAllMethods(sb);
         }
     }
 }
