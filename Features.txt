@@ -2,6 +2,10 @@
 	- Scene interface, that manages drawing and updating to keep games clean
 	- Scene manager that controls variables that switch in between scenes. Can be editted to have constants in between scenes
 	- Framerate counter within scene manager, that has on the fly FPS calculations
+- Debug Manager: # Done
+	- Toggleable visibility
+	- Debug manager holds a text list, which shows to the screen every frame whenever called.
+	- Debug manager also has a rect debug functionality, it displays any amount of rectangles' outlines
 
 - TODO:
 - Raycast (sin + cos = rot, dist, steps in between dist and center, rects to collide with other rects)
