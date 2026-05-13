@@ -1,4 +1,5 @@
 ﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
@@ -237,14 +238,19 @@ namespace sevenFramework
 
         public Sprite(Texture2D texture, Transform transform)
         {
-            this.texture = texture;
-            this.transform = transform;
+            this.texture = texture ?? throw new ArgumentNullException(nameof(texture));
+            this.transform = transform ?? throw new ArgumentNullException(nameof(transform));
         }
 
         public void Draw(SpriteBatch sb)
         {
-            Vector2 origin = new(texture.Width / 2f, texture.Height / 2f);
-            Vector2 scale = new(transform.size.X / texture.Width, transform.size.Y / texture.Height);
+            if (texture == null) return; // defensive; ctor already throws, but keep this safe in case of future mutation
+                                         // Protect against zero-sized textures to avoid divide-by-zero
+            int texW = Math.Max(1, texture.Width);
+            int texH = Math.Max(1, texture.Height);
+
+            Vector2 origin = new Vector2(texW / 2f, texH / 2f);
+            Vector2 scale = new Vector2(transform.size.X / (float)texW, transform.size.Y / (float)texH);
 
             sb.Draw(
                 texture,
@@ -275,11 +281,19 @@ namespace sevenFramework
         public float fps;
         public DebugManager debugManager;
 
-        public SceneManager(IScene scene, SpriteFont debugFont)
+        public SceneManager(ContentManager contentManager, IScene scene, SpriteFont debugFont)
+        {
+            debugManager = new(this, debugFont, Color.White);
+            LoadTextures(contentManager);
+            LoadScene(scene);
+        }
+
+        public void LoadTextures(ContentManager cm)
         {
             textureDictionary = new();
-            LoadScene(scene);
-            debugManager = new(this, debugFont, Color.White);
+
+            textureDictionary.Add("pixel", cm.Load<Texture2D>("pixel"));
+            textureDictionary.Add("kenny", cm.Load<Texture2D>("kney"));
         }
 
         public void LoadScene(IScene scene)

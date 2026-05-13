@@ -44,8 +44,7 @@ namespace sevenFramework
             debugFont = Content.Load<SpriteFont>("font");
 
             scene = new();
-            sm = new(scene, debugFont);
-            sm.textureDictionary.Add("pixel", Content.Load<Texture2D>("pixel"));
+            sm = new(Content, scene, debugFont);
         }
 
         protected override void Update(GameTime gameTime)

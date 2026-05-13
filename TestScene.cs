@@ -15,12 +15,15 @@ namespace sevenFramework
         SceneManager sm;
         float time = 0;
 
-        Rectangle testPlayerRect = new(0, 0, 32, 32);
+        Rectangle testPlayerRect = new(0, 0, 128, 128);
         int testPlayerSpeed = 1000;
+
+        Sprite sprite;
 
         public void Load(SceneManager sm)
         {
             this.sm = sm;
+            sprite = new(sm.textureDictionary["kenny"], new(new(0, 0), new(128, 128), new(0, 0)));
         }
 
         public void Update(float dt)
@@ -35,11 +38,15 @@ namespace sevenFramework
 
             if (ks.IsKeyDown(Keys.A)) testPlayerRect.X -= (int)(testPlayerSpeed * dt);
             if (ks.IsKeyDown(Keys.D)) testPlayerRect.X += (int)(testPlayerSpeed * dt);
+
+            sprite.transform.rotation.degrees += dt * 20;
+            sprite.transform.position = testPlayerRect.Center.ToVector2();
         }
 
         public void Draw(SpriteBatch sb)
         {
             sm.debugManager.AddTextToScreen($"Draw:{(int)time} @ {(int)sm.fps}");
+            sprite.Draw(sb);
         }
     }
 }
