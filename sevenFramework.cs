@@ -1,5 +1,6 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Design.Serialization;
@@ -10,6 +11,75 @@ using static System.Net.Mime.MediaTypeNames;
 
 namespace sevenFramework
 {
+    internal class Camera
+    {
+        public RenderTarget2D renderTarget;
+        public int width;
+        public int height;
+        private GraphicsDevice graphics;
+
+        // Camera state
+        private Vector2 position;
+        public Vector2 Position
+        {
+            get => position;
+            set => position = value;
+        }
+
+        public float Zoom { get; set; } = 1f;
+        public float Rotation { get; set; } = 0f;
+        public Vector2 Origin { get; private set; }
+
+        public Camera(GraphicsDevice graphics, int width, int height)
+        {
+            renderTarget = new(graphics, width, height);
+            this.width = width;
+            this.height = height;
+            this.graphics = graphics;
+
+            position = Vector2.Zero;
+            Origin = new Vector2(width * 0.5f, height * 0.5f);
+        }
+
+        public Matrix Transform
+        {
+            get
+            {
+                // Move world by -position, then rotate/scale around origin, then move origin to screen center
+                return
+                    Matrix.CreateTranslation(new Vector3(-position, 0f)) *
+                    Matrix.CreateRotationZ(Rotation) *
+                    Matrix.CreateScale(Zoom, Zoom, 1f) *
+                    Matrix.CreateTranslation(new Vector3(Origin, 0f));
+            }
+        }
+        public void SetPosition(float x, float y) => Position = new Vector2(x, y);
+        public void Move(Vector2 delta) => Position += delta;
+        public void CenterOn(Vector2 worldPosition) => Position = worldPosition;
+        public void DebugCamera(float dt, int speed)
+        {
+            Vector2 cameraDir = new(0, 0);
+            KeyboardState ks = Keyboard.GetState();
+
+            if (ks.IsKeyDown(Keys.W)) cameraDir.Y -= 1; if (ks.IsKeyDown(Keys.S)) cameraDir.Y += 1;
+            if (ks.IsKeyDown(Keys.A)) cameraDir.X -= 1; if (ks.IsKeyDown(Keys.D)) cameraDir.X += 1;
+
+            Move(cameraDir * dt * speed);
+        }
+
+        public Vector2 GetGlobalMousePosition()
+        {
+            Vector2 mp = Mouse.GetState().Position.ToVector2();
+            return mp + (position - (new Vector2(width, height) / 2));
+        }
+
+        public void DrawToScreen(SpriteBatch sb)
+        {
+            sb.Draw(renderTarget, new Rectangle(0, 0, width, height), Color.White);
+        }
+    }
+
+
     internal class MathHelper
     {
         public MathHelper()
@@ -143,6 +213,50 @@ namespace sevenFramework
         {
             if (degrees != null) this.degrees = (float)degrees;
             if (radians != null) this.radians = (float)radians;
+        }
+    }
+
+    internal class Transform
+    {
+        public Vector2 position;
+        public Vector2i size;
+        public Rotation rotation;
+    
+        public Transform(Vector2 position, Vector2i size, Rotation rotation)
+        {
+            this.position = position;
+            this.size = size;
+            this.rotation = rotation;
+        }
+    }
+
+    internal class Sprite
+    {
+        public Texture2D texture;
+        public Transform transform;
+
+        public Sprite(Texture2D texture, Transform transform)
+        {
+            this.texture = texture;
+            this.transform = transform;
+        }
+
+        public void Draw(SpriteBatch sb)
+        {
+            Vector2 origin = new(texture.Width / 2f, texture.Height / 2f);
+            Vector2 scale = new(transform.size.X / texture.Width, transform.size.Y / texture.Height);
+
+            sb.Draw(
+                texture,
+                transform.position,
+                null,
+                Color.White,
+                transform.rotation.radians,
+                origin,
+                scale,
+                SpriteEffects.None,
+                0f
+            );
         }
     }
 
