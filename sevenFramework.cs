@@ -14,53 +14,54 @@ namespace sevenFramework
 {
     internal class Polygon
     {
-        public List<Vector2> vertices;
+        // LOCAL vertices (relative to origin)
+        public List<Vector2> localVertices;
 
-        public Vector2 X
+        public Transform transform;
+
+        public Polygon(List<Vector2> vertices, Transform transform)
         {
-            get
+            this.localVertices = vertices;
+            this.transform = transform;
+        }
+
+        public Polygon(Vector2 X, Vector2 Y, Vector2 Z, Transform transform)
+        {
+            localVertices = new() { X, Y, Z };
+            this.transform = transform;
+        }
+
+        // WORLD vertices
+        public List<Vector2> GetVertices()
+        {
+            List<Vector2> verts = new();
+
+            float rot = transform.rotation.radians;
+
+            float cos = MathF.Cos(rot);
+            float sin = MathF.Sin(rot);
+
+            foreach (Vector2 local in localVertices)
             {
-                if (vertices == null || vertices.Count < 1) throw new InvalidOperationException("Polygon has no vertices");
-                return vertices[0];
+                // Rotate
+                Vector2 rotated = new(
+                    local.X * cos - local.Y * sin,
+                    local.X * sin + local.Y * cos
+                );
+
+                // Translate
+                rotated += transform.position;
+
+                verts.Add(rotated);
             }
-        }
-        public Vector2 Y
-        {
-            get
-            {
-                if (vertices == null || vertices.Count < 2) throw new InvalidOperationException("Polygon does not have a Y vertex");
-                return vertices[1];
-            }
-        }
-        public Vector2 Z
-        {
-            get
-            {
-                if (vertices == null || vertices.Count < 3) throw new InvalidOperationException("Polygon does not have a Z vertex");
-                return vertices[2];
-            }
-        }
 
-        // Generic polygon constructor
-        public Polygon(Vector2 X, Vector2 Y, Vector2 Z)
-        {
-            vertices = new() { X, Y, Z };
+            return verts;
         }
-
-        public void SetVertices(Vector2 X, Vector2 Y, Vector2 Z)
-        {
-            vertices = new() { X, Y, Z };
-        }
-
-        public void SetVertices(List<Vector2> vertices)
-        {
-            this.vertices = vertices;
-        }
-
 
         public IEnumerable<(Vector2 a, Vector2 b)> GetEdges()
         {
-            if (vertices == null) yield break;
+            List<Vector2> vertices = GetVertices();
+
             for (int i = 0; i < vertices.Count; i++)
             {
                 yield return (
@@ -72,7 +73,9 @@ namespace sevenFramework
 
         public Rectangle GetBoundingRectangle()
         {
-            if (vertices == null || vertices.Count == 0)
+            List<Vector2> vertices = GetVertices();
+
+            if (vertices.Count == 0)
                 return Rectangle.Empty;
 
             float minX = vertices.Min(v => v.X);
@@ -80,95 +83,82 @@ namespace sevenFramework
             float maxX = vertices.Max(v => v.X);
             float maxY = vertices.Max(v => v.Y);
 
-            int x = (int)Math.Floor(minX);
-            int y = (int)Math.Floor(minY);
-            int width = (int)Math.Ceiling(maxX - minX);
-            int height = (int)Math.Ceiling(maxY - minY);
-
-            // Ensure non-negative dimensions
-            width = Math.Max(0, width);
-            height = Math.Max(0, height);
-
-            return new Rectangle(x, y, width, height);
+            return new Rectangle(
+                (int)minX,
+                (int)minY,
+                (int)(maxX - minX),
+                (int)(maxY - minY)
+            );
         }
 
-        // Temporary
-        public void Move(Vector2 offs)
-        {
-            List<Vector2> newVerts = new();
-
-            for (int i = 0; i < vertices.Count; i++)
-            {
-                newVerts.Add(vertices[i] + offs);
-            }
-
-            SetVertices(newVerts);
-        }
-
-        // Compute polygon centroid (average of vertices). Good enough for SAT direction decisions.
         public Vector2 GetCenter()
         {
-            if (vertices == null || vertices.Count == 0) return Vector2.Zero;
+            List<Vector2> vertices = GetVertices();
+
             Vector2 sum = Vector2.Zero;
-            foreach (var v in vertices) sum += v;
+
+            foreach (var v in vertices)
+                sum += v;
+
             return sum / vertices.Count;
         }
 
-        // Build normalized axes (per-edge normals) for SAT.
         public List<Vector2> GetAxes()
         {
             var axes = new List<Vector2>();
-            if (vertices == null || vertices.Count < 2) return axes;
 
             foreach (var edge in GetEdges())
             {
                 Vector2 e = edge.b - edge.a;
-                // perpendicular vector
-                Vector2 axis = new Vector2(-e.Y, e.X);
+
+                Vector2 axis = new(-e.Y, e.X);
 
                 float len = axis.Length();
-                if (len <= float.Epsilon) continue; // skip degenerate edges
-                axis /= len; // normalize
+
+                if (len <= float.Epsilon)
+                    continue;
+
+                axis /= len;
+
                 axes.Add(axis);
             }
 
             return axes;
         }
 
-        // Project polygon onto axis (axis should be normalized for meaningful overlap values)
         public (float min, float max) ProjectOntoAxis(Vector2 axis)
         {
-            if (vertices == null || vertices.Count == 0) return (0f, 0f);
+            List<Vector2> vertices = GetVertices();
 
-            // Normalize axis in-case caller didn't
-            float axisLen = axis.Length();
-            if (axisLen <= float.Epsilon) return (0f, 0f);
-            axis /= axisLen;
+            axis = Vector2.Normalize(axis);
 
             float min = Vector2.Dot(vertices[0], axis);
             float max = min;
+
             for (int i = 1; i < vertices.Count; i++)
             {
                 float proj = Vector2.Dot(vertices[i], axis);
+
                 if (proj < min) min = proj;
                 if (proj > max) max = proj;
             }
+
             return (min, max);
         }
 
-        // SAT polygon-vs-polygon test.
-        // Returns true if polygons intersect. If true, 'mtv' will contain the minimum translation vector
-        // to move 'this' polygon out of collision (direction points away from 'other').
         public bool Intersects(Polygon other, out Vector2 mtv)
         {
             mtv = Vector2.Zero;
-            if (other == null) return false;
-            if (vertices == null || vertices.Count < 3 || other.vertices == null || other.vertices.Count < 3) return false;
+
+            List<Vector2> verticesA = GetVertices();
+            List<Vector2> verticesB = other.GetVertices();
+
+            if (verticesA.Count < 3 || verticesB.Count < 3)
+                return false;
 
             float smallestOverlap = float.PositiveInfinity;
             Vector2 smallestAxis = Vector2.Zero;
 
-            // Collect axes from both polygons
             var axes = GetAxes();
             axes.AddRange(other.GetAxes());
 
@@ -177,33 +167,28 @@ namespace sevenFramework
 
             foreach (var axis in axes)
             {
-                // Use normalized axis
-                Vector2 normAxis = axis;
-                float len = normAxis.Length();
-                if (len <= float.Epsilon) continue;
-                normAxis /= len;
+                Vector2 normAxis = Vector2.Normalize(axis);
 
                 var aProj = ProjectOntoAxis(normAxis);
                 var bProj = other.ProjectOntoAxis(normAxis);
 
-                // overlap length on this axis
-                float overlap = Math.Min(aProj.max, bProj.max) - Math.Max(aProj.min, bProj.min);
+                float overlap =
+                    Math.Min(aProj.max, bProj.max) -
+                    Math.Max(aProj.min, bProj.min);
 
-                // If no overlap -> separating axis found
                 if (overlap <= 0f)
                 {
                     mtv = Vector2.Zero;
                     return false;
                 }
 
-                // track smallest overlap for MTV
                 if (overlap < smallestOverlap)
                 {
                     smallestOverlap = overlap;
                     smallestAxis = normAxis;
 
-                    // make axis point from A to B so MTV pushes A away from B
                     Vector2 dir = centerB - centerA;
+
                     if (Vector2.Dot(dir, smallestAxis) < 0f)
                     {
                         smallestAxis = -smallestAxis;
@@ -211,12 +196,11 @@ namespace sevenFramework
                 }
             }
 
-            // If all axes overlapped, polygons intersect. MTV is axis * overlap.
             mtv = smallestAxis * smallestOverlap;
+
             return true;
         }
 
-        // Convenience overload if caller does not need MTV
         public bool Intersects(Polygon other)
         {
             return Intersects(other, out _);
@@ -623,9 +607,10 @@ namespace sevenFramework
         public void DrawPolygon(SpriteBatch sb, Polygon polygon, int lineSteps, Color color)
         {
             MathHelper mh = sm.mathHelper;
-            Vector2 X = polygon.X;
-            Vector2 Y = polygon.Y;
-            Vector2 Z = polygon.Z;
+            List<Vector2> vertices = polygon.GetVertices();
+            Vector2 X = vertices[0];
+            Vector2 Y = vertices[1];
+            Vector2 Z = vertices[2];
 
             // Fallback to per-point drawing (original behavior) if bake failed
             List<Vector2> xy = mh.PointsBetween(X, Y, lineSteps);
