@@ -17,7 +17,6 @@ namespace sevenFramework
         float time = 0;
 
         Sprite sprite;
-        //Polygon testPolygon = new(new(100, 100), new(150, 200), new(100, 300));
         Polygon testPolygon = new(
             new List<Vector2>
             {
@@ -32,9 +31,7 @@ namespace sevenFramework
                 new(0)
             )
         );
-
-        //Polygon playerPrim_X = new(new(0, 100), new(0, 0), new(100, 0));
-        //Polygon playerPrim_Y = new(new(0, 100), new(100, 100), new(100, 0));
+        SquarePrimitive playerPrimitive = new(new(new(0, 0), new(100, 100), new(0, 0)));
 
         public void Load(SceneManager sm)
         {
@@ -47,7 +44,7 @@ namespace sevenFramework
         {
             time += dt;
             sm.debugManager.AddPolygonToScreen(Color.Green, testPolygon);
-            sprite.transform.rotation.degrees += dt * 20;
+            testPolygon.transform.rotation.degrees += dt * 50;
             MovePlayerPrimitives(dt);
         }
 
@@ -62,17 +59,13 @@ namespace sevenFramework
             if (ks.IsKeyDown(Keys.A)) dir.X -= 1;
             if (ks.IsKeyDown(Keys.D)) dir.X += 1;
 
-            testPolygon.transform.rotation.degrees += dir.X * dt * 50;
-
-            /*
-            playerPrim_X.transform.position += (dir * speed * dt);
-            playerPrim_X.transform.position += (dir * speed * dt);
-
-            if (playerPrim_X.Intersects(testPolygon)) sm.debugManager.AddPolygonToScreen(Color.Red, playerPrim_X);
-            else sm.debugManager.AddPolygonToScreen(Color.Green, playerPrim_X);
-            if (playerPrim_Y.Intersects(testPolygon)) sm.debugManager.AddPolygonToScreen(Color.Red, playerPrim_Y);
-            else sm.debugManager.AddPolygonToScreen(Color.Green, playerPrim_Y);
-            */
+            playerPrimitive.transform.position += dir * speed * dt;
+            
+            foreach(Polygon polygon in playerPrimitive.polygons)
+            {
+                if (playerPrimitive.Intersects(testPolygon)) sm.debugManager.AddPolygonToScreen(Color.Red, polygon);
+                else sm.debugManager.AddPolygonToScreen(Color.Green, polygon);
+            }
         }
 
         public void Bake(SpriteBatch sb)
@@ -84,10 +77,10 @@ namespace sevenFramework
             sb.Begin(samplerState: SamplerState.PointClamp);
 
             sm.debugManager.AddTextToScreen(new Vector2(0, 0), Color.White, $"Draw:{(int)time} @ {(int)sm.fps}");
-            sprite.Draw(sb);
 
             sm.debugManager.DrawAllShapes(sb);
             sm.debugManager.DrawAllText(sb);
+
             sb.End();
         }
     }

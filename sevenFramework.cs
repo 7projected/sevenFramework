@@ -207,6 +207,75 @@ namespace sevenFramework
         }
     }
 
+    internal class SquarePrimitive
+    {
+        public List<Polygon> polygons;
+
+        private Transform _transform;
+        public Transform transform
+        {
+            get
+            {
+                return _transform;
+            }
+            set
+            {
+                foreach(Polygon polygon in polygons)
+                {
+                    polygon.transform = value;
+                    _transform = value;
+                }
+            }
+        }
+
+        public SquarePrimitive(Transform transform)
+        {
+            polygons = new();
+
+            float zeroX = -(transform.size.X / 2);
+            float zeroY = -(transform.size.Y / 2);
+            float oneX = transform.size.X / 2;
+            float oneY = transform.size.Y / 2;
+
+            polygons = new();
+            polygons.Add(
+                new Polygon(
+                    new List<Vector2>
+                    {
+                        new(zeroX, zeroY),
+                        new(oneX, zeroY),
+                        new(zeroX, oneY)
+                    },
+                    this.transform
+                    )
+                );
+
+            polygons.Add(
+                new Polygon(
+                    new List<Vector2>
+                    {
+                        new(oneX, oneY),
+                        new(zeroX,  oneY),
+                        new(oneX, zeroY)
+                    },
+                    this.transform
+                    )
+                );
+
+
+            this.transform = transform;
+        }
+    
+        public bool Intersects(Polygon polygon)
+        {
+            foreach(Polygon p in polygons)
+            {
+                if (p.Intersects(polygon)) return true;
+            }
+            return false;
+        }
+    }
+
     internal class Camera
     {
         private RenderTarget2D renderTarget;
