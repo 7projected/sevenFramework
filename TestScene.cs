@@ -16,11 +16,11 @@ namespace sevenFramework
         SceneManager sm;
         float time = 0;
 
-        Rectangle testPlayerRect = new(0, 0, 128, 128);
-        int testPlayerSpeed = 1000;
-
         Sprite sprite;
         Polygon testPolygon = new(new(100, 100), new(150, 200), new(100, 300));
+
+        Polygon playerPrim_X = new(new(0, 100), new(0, 0), new(100, 0));
+        Polygon playerPrim_Y = new(new(0, 100), new(100, 100), new(100, 0));
 
         public void Load(SceneManager sm)
         {
@@ -32,19 +32,29 @@ namespace sevenFramework
         public void Update(float dt)
         {
             time += dt;
-            sm.debugManager.AddRectToScreen(testPlayerRect);
-            sm.debugManager.AddPolygonToScreen(testPolygon);
+            sm.debugManager.AddPolygonToScreen(Color.Green, testPolygon);
+            sprite.transform.rotation.degrees += dt * 20;
+            MovePlayerPrimitives(dt);
+        }
 
+        public void MovePlayerPrimitives(float dt)
+        {
+            Vector2 dir = new(0, 0);
+            int speed = 100;
             KeyboardState ks = Keyboard.GetState();
 
-            if (ks.IsKeyDown(Keys.W)) testPlayerRect.Y -= (int)(testPlayerSpeed * dt);
-            if (ks.IsKeyDown(Keys.S)) testPlayerRect.Y += (int)(testPlayerSpeed * dt);
+            if (ks.IsKeyDown(Keys.W)) dir.Y -= 1;
+            if (ks.IsKeyDown(Keys.S)) dir.Y += 1;
+            if (ks.IsKeyDown(Keys.A)) dir.X -= 1;
+            if (ks.IsKeyDown(Keys.D)) dir.X += 1;
 
-            if (ks.IsKeyDown(Keys.A)) testPlayerRect.X -= (int)(testPlayerSpeed * dt);
-            if (ks.IsKeyDown(Keys.D)) testPlayerRect.X += (int)(testPlayerSpeed * dt);
+            playerPrim_X.Move(dir * speed * dt);
+            playerPrim_Y.Move(dir * speed * dt);
 
-            sprite.transform.rotation.degrees += dt * 20;
-            sprite.transform.position = testPlayerRect.Center.ToVector2();
+            if (playerPrim_X.Intersects(testPolygon)) sm.debugManager.AddPolygonToScreen(Color.Red, playerPrim_X);
+            else sm.debugManager.AddPolygonToScreen(Color.Green, playerPrim_X);
+            if (playerPrim_Y.Intersects(testPolygon)) sm.debugManager.AddPolygonToScreen(Color.Red, playerPrim_Y);
+            else sm.debugManager.AddPolygonToScreen(Color.Green, playerPrim_Y);
         }
 
         public void Bake(SpriteBatch sb)
@@ -55,7 +65,7 @@ namespace sevenFramework
         {
             sb.Begin(samplerState: SamplerState.PointClamp);
 
-            sm.debugManager.AddTextToScreen($"Draw:{(int)time} @ {(int)sm.fps}");
+            sm.debugManager.AddTextToScreen(new Vector2(0, 0), Color.White, $"Draw:{(int)time} @ {(int)sm.fps}");
             sprite.Draw(sb);
 
             sm.debugManager.DrawAllShapes(sb);

@@ -42,12 +42,21 @@ namespace sevenFramework
         }
 
         // Generic polygon constructor
-        public Polygon(IEnumerable<Vector2> verts)
+        public Polygon(Vector2 X, Vector2 Y, Vector2 Z)
         {
-            if (verts == null) throw new ArgumentNullException(nameof(verts));
-            vertices = verts.ToList();
-            if (vertices.Count < 3) throw new ArgumentException("Polygon requires at least 3 vertices", nameof(verts));
+            vertices = new() { X, Y, Z };
         }
+
+        public void SetVertices(Vector2 X, Vector2 Y, Vector2 Z)
+        {
+            vertices = new() { X, Y, Z };
+        }
+
+        public void SetVertices(List<Vector2> vertices)
+        {
+            this.vertices = vertices;
+        }
+
 
         public IEnumerable<(Vector2 a, Vector2 b)> GetEdges()
         {
@@ -81,6 +90,19 @@ namespace sevenFramework
             height = Math.Max(0, height);
 
             return new Rectangle(x, y, width, height);
+        }
+
+        // Temporary
+        public void Move(Vector2 offs)
+        {
+            List<Vector2> newVerts = new();
+
+            for (int i = 0; i < vertices.Count; i++)
+            {
+                newVerts.Add(vertices[i] + offs);
+            }
+
+            SetVertices(newVerts);
         }
 
         // Compute polygon centroid (average of vertices). Good enough for SAT direction decisions.
@@ -502,7 +524,7 @@ namespace sevenFramework
             this.contentManager = contentManager;
             this.graphicsDevice = graphicsDevice;
             this.mathHelper = new();
-            debugManager = new(this, debugFont, Color.White, Color.Red, Color.Blue, Color.Green);
+            debugManager = new(this, debugFont);
 
             LoadTextures(contentManager);
             LoadScene(scene);
@@ -539,64 +561,66 @@ namespace sevenFramework
         }
     }
 
+    internal record PolygonDebugPacket(Color color, Polygon polygon);
+    internal record RectangleDebugPacket(Color color, Rectangle rectangle);
+    internal record TextDebugPacket(Vector2 offset, Color color, String str);
+    internal record PointDebugPacket(Vector2 center, int size, Color color);
+
     internal class DebugManager
     {
         private SceneManager sm;
 
-        private List<String> debugTextList = new();
-        private List<Rectangle> debugRectList = new();
-        private List<Polygon> debugPolygonList = new();
+        private List<TextDebugPacket> debugTextList = new();
+        private List<RectangleDebugPacket> debugRectList = new();
+        private List<PolygonDebugPacket> debugPolygonList = new();
+        private List<PointDebugPacket> debugPointList = new();
 
         public SpriteFont font;
         public bool visible = true;
 
-        private Color fontColor;
-        private Color rectangleColor;
-        private Color polygonLineColor;
-        private Color polygonEdgeColor;
-
-        public DebugManager(SceneManager sm, SpriteFont font,
-            Color fontColor, Color rectangleColor, Color polygonLineColor, Color polygonEdgeColor)
+        public DebugManager(SceneManager sm, SpriteFont font)
         {
             this.sm = sm;
             this.font = font;
-
-            this.fontColor = fontColor;
-            this.rectangleColor = rectangleColor;
-            this.polygonLineColor = polygonLineColor;
-            this.polygonEdgeColor = polygonEdgeColor;
         }
 
-        public void SetColors(Color fontColor, Color rectangleColor, Color polygonLineColor, Color polygonEdgeColor)
+        public void AddTextToScreen(Vector2 offset, Color color, String str)
         {
-            this.fontColor = fontColor;
-            this.rectangleColor = rectangleColor;
-            this.polygonLineColor = polygonLineColor;
-            this.polygonEdgeColor = polygonEdgeColor;
+            this.debugTextList.Add(new(offset, color, str));
         }
 
-        public void AddTextToScreen(String str)
+        public void AddRectToScreen(Color color, Rectangle rect)
         {
-            this.debugTextList.Add(str);
+            this.debugRectList.Add(new(color, rect));
         }
 
-        public void AddRectToScreen(Rectangle rect)
+        public void AddPolygonToScreen(Color color, Polygon polygon)
         {
-            this.debugRectList.Add(rect);
+            this.debugPolygonList.Add(new(color, polygon));
         }
 
-        public void AddPolygonToScreen(Polygon polygon)
+        public void AddPointToScreen(Color color, Vector2 center, int size)
         {
-            this.debugPolygonList.Add(polygon);
+            debugPointList.Add(new(center, size, color));
         }
 
 
-        public void DrawPoint(SpriteBatch sb, Vector2i pos, Vector2i size, Color color, Texture2D texture, int thickness = 4)
+        public void DrawPoint(SpriteBatch sb, Color color, Vector2 center, int size)
         {
-            sb.Draw(texture, new Rectangle(new Point(pos.X - thickness / 2, pos.Y - thickness / 2), new Point(thickness, thickness)), color);
+            sb.Draw(sm.textureDictionary["pixel"], 
+                new Rectangle(new Point((int)center.X - size / 2, (int)center.Y - size / 2), new Point(size, size)), color);
         }
 
-        public void DrawPolygon(SpriteBatch sb, Polygon polygon, int lineSteps, Color lineColor, Color edgeColor)
+        public void DrawAllPoints(SpriteBatch sb)
+        {
+            foreach(PointDebugPacket packet in debugPointList)
+            {
+                DrawPoint(sb, packet.color, packet.center, packet.size);
+            }
+            debugPointList.Clear();
+        }
+
+        public void DrawPolygon(SpriteBatch sb, Polygon polygon, int lineSteps, Color color)
         {
             MathHelper mh = sm.mathHelper;
             Vector2 X = polygon.X;
@@ -615,20 +639,21 @@ namespace sevenFramework
 
             foreach (Vector2 point in pts)
             {
-                DrawPoint(sb, new Vector2i(point), new Vector2i(1, 1), lineColor, sm.textureDictionary["pixel"]);
+                AddPointToScreen(color, point, 4);
             }
 
-            DrawPoint(sb, new Vector2i(X), new Vector2i(1, 1), edgeColor, sm.textureDictionary["pixel"]);
-            DrawPoint(sb, new Vector2i(Y), new Vector2i(1, 1), edgeColor, sm.textureDictionary["pixel"]);
-            DrawPoint(sb, new Vector2i(Z), new Vector2i(1, 1), edgeColor, sm.textureDictionary["pixel"]);
+            AddPointToScreen(color, X, 4);
+            AddPointToScreen(color, Y, 4);
+            AddPointToScreen(color, Z, 4);
         }
 
         public void DrawAllPolygons(SpriteBatch sb, int lineSteps = 25)
         {
-            foreach(Polygon polygon in debugPolygonList)
+            foreach(PolygonDebugPacket packet in debugPolygonList)
             {
-                DrawPolygon(sb, polygon, lineSteps, polygonLineColor, polygonEdgeColor);
+                DrawPolygon(sb, packet.polygon, lineSteps, packet.color);
             }
+            debugPolygonList.Clear();
         }
 
 
@@ -646,9 +671,9 @@ namespace sevenFramework
 
         public void DrawAllRects(SpriteBatch sb)
         {
-            foreach (Rectangle rect in debugRectList.ToList())
+            foreach (RectangleDebugPacket packet in debugRectList.ToList())
             {
-                DrawRect(sb, rect, 2, rectangleColor);
+                DrawRect(sb, packet.rectangle , 2, packet.color);
             }
             debugRectList.Clear();
         }
@@ -660,6 +685,7 @@ namespace sevenFramework
             {
                 DrawAllPolygons(sb);
                 DrawAllRects(sb);
+                DrawAllPoints(sb);
             }
         }
 
@@ -667,9 +693,9 @@ namespace sevenFramework
         {
             if (visible)
             {
-                foreach (String str in debugTextList.ToList())
+                foreach (TextDebugPacket packet in debugTextList.ToList())
                 {
-                    sb.DrawString(font, str, new(0, 0), fontColor);
+                    sb.DrawString(font, packet.str, packet.offset, packet.color);
                 }
 
                 debugTextList.Clear();
