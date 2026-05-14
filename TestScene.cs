@@ -51,15 +51,19 @@ namespace sevenFramework
         public void MovePlayerPrimitives(float dt)
         {
             Vector2 dir = new(0, 0);
+            int rotDir = 0;
             int speed = 100;
             KeyboardState ks = Keyboard.GetState();
 
+            if (ks.IsKeyDown(Keys.Q)) rotDir -= 1;
+            if (ks.IsKeyDown(Keys.E)) rotDir += 1;
             if (ks.IsKeyDown(Keys.W)) dir.Y -= 1;
             if (ks.IsKeyDown(Keys.S)) dir.Y += 1;
             if (ks.IsKeyDown(Keys.A)) dir.X -= 1;
             if (ks.IsKeyDown(Keys.D)) dir.X += 1;
 
             playerPrimitive.transform.position += dir * speed * dt;
+            playerPrimitive.transform.rotation.degrees += rotDir * speed * dt;
             
             foreach(Polygon polygon in playerPrimitive.polygons)
             {

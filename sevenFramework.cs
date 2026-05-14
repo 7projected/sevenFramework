@@ -16,8 +16,12 @@ namespace sevenFramework
     {
         // LOCAL vertices (relative to origin)
         public List<Vector2> localVertices;
-
         public Transform transform;
+
+        public float Top => GetVertices().Min(v => v.Y);
+        public float Bottom => GetVertices().Max(v => v.Y);
+        public float Left => GetVertices().Min(v => v.X);
+        public float Right => GetVertices().Max(v => v.X);
 
         public Polygon(List<Vector2> vertices, Transform transform)
         {
@@ -228,6 +232,11 @@ namespace sevenFramework
             }
         }
 
+        public float Top;
+        public float Bottom;
+        public float Left;
+        public float Right;
+
         public SquarePrimitive(Transform transform)
         {
             polygons = new();
@@ -264,6 +273,15 @@ namespace sevenFramework
 
 
             this.transform = transform;
+            GetEdges();
+        }
+
+        private void GetEdges()
+        {
+            Top = polygons[0].Top;
+            Bottom = polygons[1].Bottom;
+            Left = polygons[0].Left;
+            Right = polygons[1].Right;
         }
     
         public bool Intersects(Polygon polygon)
