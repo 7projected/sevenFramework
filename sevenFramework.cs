@@ -12,6 +12,50 @@ using static System.Net.Mime.MediaTypeNames;
 
 namespace sevenFramework
 {
+    internal class Polygon
+    {
+        public Vector2 X;
+        public Vector2 Y;
+        public Vector2 Z;
+
+        public Polygon(Vector2 X, Vector2 Y, Vector2 Z)
+        {
+            this.X = X;
+            this.Y = Y;
+            this.Z = Z;
+        }
+
+        public void DrawPoint(SpriteBatch sb, Vector2i pos, Vector2i size, Color color, Texture2D texture, int thickness = 4)
+        {
+            sb.Draw(texture, new Rectangle(new Point(pos.X - thickness / 2, pos.Y - thickness / 2), new Point(thickness, thickness)), color);
+        }
+
+        public void Draw(SpriteBatch sb, SceneManager sm, MathHelper mh, 
+                            int lineSteps, Color edgeColor, Color lineColor)
+        {
+            List<Vector2> xy = mh.PointsBetween(X, Y, lineSteps);
+            List<Vector2> xz = mh.PointsBetween(X, Z, lineSteps);
+            List<Vector2> yz = mh.PointsBetween(Y, Z, lineSteps);
+
+            List<Vector2> pts = new();
+            foreach (Vector2 pt in xy) pts.Add(pt);
+            foreach (Vector2 pt in xz) pts.Add(pt);
+            foreach (Vector2 pt in yz) pts.Add(pt);
+
+            
+            foreach (Vector2 point in pts)
+            {
+                DrawPoint(sb, new(point.X, point.Y), new(1, 1), lineColor, sm.textureDictionary["pixel"]);
+            }
+
+            DrawPoint(sb, new(X.X, X.Y), new(1, 1), edgeColor, sm.textureDictionary["pixel"]);
+            DrawPoint(sb, new(Y.X, Y.Y), new(1, 1), edgeColor, sm.textureDictionary["pixel"]);
+            DrawPoint(sb, new(Z.X, Z.Y), new(1, 1), edgeColor, sm.textureDictionary["pixel"]);
+
+        }
+
+    }
+
     internal class Camera
     {
         public RenderTarget2D renderTarget;
@@ -90,6 +134,24 @@ namespace sevenFramework
 
         public float DegToRad(float degrees) => (degrees * ((float)Math.PI / 180));
         public float RadToDeg(float radians) => (radians * (180 / (float)Math.PI));
+    
+        public List<Vector2> PointsBetween(Vector2 a, Vector2 b, int steps)
+        {
+            List<Vector2> points = new();
+
+            for (int i = 0; i < steps; i++)
+            {
+                float step = (float)i / steps;
+
+                Vector2 point = new(0, 0);
+                point.X = a.X + (b.X - a.X) * step;
+                point.Y = a.Y + (b.Y - a.Y) * step;
+
+                points.Add(point);
+            }
+
+            return points;
+        }
     }
 
     internal class Vector2i : IEquatable<Vector2i>

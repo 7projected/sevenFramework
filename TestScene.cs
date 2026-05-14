@@ -12,6 +12,7 @@ namespace sevenFramework
 {
     internal class TestScene : IScene
     {
+        MathHelper mh;
         SceneManager sm;
         float time = 0;
 
@@ -19,10 +20,12 @@ namespace sevenFramework
         int testPlayerSpeed = 1000;
 
         Sprite sprite;
+        Polygon testPolygon = new(new(100, 100), new(150, 200), new(100, 300));
 
         public void Load(SceneManager sm)
         {
             this.sm = sm;
+            mh = new();
             sprite = new(sm.textureDictionary["kenny"], new(new(0, 0), new(128, 128), new(0, 0)));
         }
 
@@ -47,6 +50,8 @@ namespace sevenFramework
         {
             sm.debugManager.AddTextToScreen($"Draw:{(int)time} @ {(int)sm.fps}");
             sprite.Draw(sb);
+
+            testPolygon.Draw(sb, sm, mh, 50, Color.Red, Color.Green);
         }
     }
 }
