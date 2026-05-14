@@ -12,7 +12,7 @@ namespace sevenFramework
 
         private int displayHeight = 720;
         private int displayWidth = 1280;
-        private float framerate = 30;
+        private float framerate = 60;
 
         private SpriteFont debugFont;
         private SceneManager sm;
