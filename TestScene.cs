@@ -63,8 +63,14 @@ namespace sevenFramework
             
             foreach(Polygon polygon in playerPrimitive.polygons)
             {
-                if (playerPrimitive.Intersects(testPolygon)) sm.debugManager.AddPolygonToScreen(Color.Red, polygon);
-                else sm.debugManager.AddPolygonToScreen(Color.Green, polygon);
+                if (polygon.Intersects(testPolygon))
+                {
+                    sm.debugManager.AddPolygonToScreen(Color.Red, polygon);
+                }
+                else
+                {
+                    sm.debugManager.AddPolygonToScreen(Color.Green, polygon);
+                }
             }
         }
 
