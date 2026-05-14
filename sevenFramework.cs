@@ -12,7 +12,7 @@ using static System.Net.Mime.MediaTypeNames;
 
 namespace sevenFramework
 {
-    internal class Polygon // Work on SAT collision tommroww for platformer, and slopes
+    internal class Polygon
     {
         public List<Vector2> vertices;
 
