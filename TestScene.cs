@@ -46,12 +46,22 @@ namespace sevenFramework
             sprite.transform.position = testPlayerRect.Center.ToVector2();
         }
 
+        public void Bake(SpriteBatch sb)
+        {
+            testPolygon.Bake(sb, sm);
+        }
+
         public void Draw(SpriteBatch sb)
         {
+            sb.Begin(samplerState: SamplerState.PointClamp);
+
             sm.debugManager.AddTextToScreen($"Draw:{(int)time} @ {(int)sm.fps}");
             sprite.Draw(sb);
 
             testPolygon.Draw(sb, sm, mh, 50, Color.Red, Color.Green);
+
+            sm.debugManager.DrawText(sb);
+            sb.End();
         }
     }
 }

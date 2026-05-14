@@ -14,15 +14,37 @@ namespace sevenFramework
 {
     internal class Polygon // Work on SAT collision tommroww for platformer, and slopes
     {
-        public Vector2 X;
-        public Vector2 Y;
-        public Vector2 Z;
+        public List<Vector2> vertices;
+        public List<Vector2> lastVertices;
+        public RenderTarget2D renderTarget2D;
+        private bool needsBaking = false;
+        private Rectangle bakedRect;
+
+        public Vector2 X
+        {
+            get
+            {
+                return vertices[0];
+            }
+        }
+        public Vector2 Y
+        {
+            get
+            {
+                return vertices[1];
+            }
+        }
+        public Vector2 Z
+        {
+            get
+            {
+                return vertices[2];
+            }
+        }
 
         public Polygon(Vector2 X, Vector2 Y, Vector2 Z)
         {
-            this.X = X;
-            this.Y = Y;
-            this.Z = Z;
+            SetVertices(X, Y, Z);
         }
 
         public void DrawPoint(SpriteBatch sb, Vector2i pos, Vector2i size, Color color, Texture2D texture, int thickness = 4)
@@ -30,30 +52,139 @@ namespace sevenFramework
             sb.Draw(texture, new Rectangle(new Point(pos.X - thickness / 2, pos.Y - thickness / 2), new Point(thickness, thickness)), color);
         }
 
-        public void Draw(SpriteBatch sb, SceneManager sm, MathHelper mh, 
-                            int lineSteps, Color edgeColor, Color lineColor)
+        public void SetVertices(Vector2 X, Vector2 Y, Vector2 Z)
         {
+            vertices = new() { X, Y, Z };
+            needsBaking = true;
+        }
+
+        private void BakeTexture(SpriteBatch sb, SceneManager sm, MathHelper mh, int lineSteps, Color edgeColor, Color lineColor)
+        {
+            Rectangle boundingRect = GetBoundingRectangle();
+
+            int width = Math.Max(1, boundingRect.Width);
+            int height = Math.Max(1, boundingRect.Height);
+
+            // Dispose previous render target if any
+            renderTarget2D?.Dispose();
+            renderTarget2D = new RenderTarget2D(sm.graphicsDevice, width, height);
+
+            // Set render target and draw points into it
+            sm.graphicsDevice.SetRenderTarget(renderTarget2D);
+            sm.graphicsDevice.Clear(Color.Transparent);
+
+            // Begin a SpriteBatch targeted at the render target
+            sb.Begin(samplerState: SamplerState.PointClamp, blendState: BlendState.AlphaBlend, sortMode: SpriteSortMode.Deferred);
+
             List<Vector2> xy = mh.PointsBetween(X, Y, lineSteps);
             List<Vector2> xz = mh.PointsBetween(X, Z, lineSteps);
             List<Vector2> yz = mh.PointsBetween(Y, Z, lineSteps);
 
-            List<Vector2> pts = new();
-            foreach (Vector2 pt in xy) pts.Add(pt);
-            foreach (Vector2 pt in xz) pts.Add(pt);
-            foreach (Vector2 pt in yz) pts.Add(pt);
-
-            
-            foreach (Vector2 point in pts)
+            // Draw line points (relative to bounding rect)
+            foreach (Vector2 pt in xy)
             {
-                DrawPoint(sb, new(point.X, point.Y), new(1, 1), lineColor, sm.textureDictionary["pixel"]);
+                int px = (int)Math.Round(pt.X) - boundingRect.X;
+                int py = (int)Math.Round(pt.Y) - boundingRect.Y;
+                if (px >= 0 && px < width && py >= 0 && py < height)
+                    sb.Draw(sm.textureDictionary["pixel"], new Rectangle(px, py, 1, 1), lineColor);
+            }
+            foreach (Vector2 pt in xz)
+            {
+                int px = (int)Math.Round(pt.X) - boundingRect.X;
+                int py = (int)Math.Round(pt.Y) - boundingRect.Y;
+                if (px >= 0 && px < width && py >= 0 && py < height)
+                    sb.Draw(sm.textureDictionary["pixel"], new Rectangle(px, py, 1, 1), lineColor);
+            }
+            foreach (Vector2 pt in yz)
+            {
+                int px = (int)Math.Round(pt.X) - boundingRect.X;
+                int py = (int)Math.Round(pt.Y) - boundingRect.Y;
+                if (px >= 0 && px < width && py >= 0 && py < height)
+                    sb.Draw(sm.textureDictionary["pixel"], new Rectangle(px, py, 1, 1), lineColor);
             }
 
-            DrawPoint(sb, new(X.X, X.Y), new(1, 1), edgeColor, sm.textureDictionary["pixel"]);
-            DrawPoint(sb, new(Y.X, Y.Y), new(1, 1), edgeColor, sm.textureDictionary["pixel"]);
-            DrawPoint(sb, new(Z.X, Z.Y), new(1, 1), edgeColor, sm.textureDictionary["pixel"]);
+            // Draw vertices with edgeColor (overwrites)
+            Vector2[] corners = new Vector2[] { X, Y, Z };
+            foreach (Vector2 v in corners)
+            {
+                int px = (int)Math.Round(v.X) - boundingRect.X;
+                int py = (int)Math.Round(v.Y) - boundingRect.Y;
+                if (px >= 0 && px < width && py >= 0 && py < height)
+                    sb.Draw(sm.textureDictionary["pixel"], new Rectangle(px, py, 1, 1), edgeColor);
+            }
 
+            sb.End();
+
+            // Reset render target to back buffer
+            sm.graphicsDevice.SetRenderTarget(null);
+
+            // Save baked rect and lastVertices for change detection
+            bakedRect = boundingRect;
+            lastVertices = vertices.Select(v => new Vector2(v.X, v.Y)).ToList();
         }
 
+        public void Bake(SpriteBatch  sb, SceneManager sm)
+        {
+            if (!needsBaking)
+            {
+                BakeTexture(sb, sm, sm.mathHelper, 50, Color.Red, Color.Green);
+            }
+        }
+
+        public void Draw(SpriteBatch sb, SceneManager sm, MathHelper mh, 
+                            int lineSteps, Color edgeColor, Color lineColor)
+        {
+            if (renderTarget2D == null)
+            {
+                // Fallback to per-point drawing (original behavior) if bake failed
+                List<Vector2> xy = mh.PointsBetween(X, Y, lineSteps);
+                List<Vector2> xz = mh.PointsBetween(X, Z, lineSteps);
+                List<Vector2> yz = mh.PointsBetween(Y, Z, lineSteps);
+
+                List<Vector2> pts = new();
+                foreach (Vector2 pt in xy) pts.Add(pt);
+                foreach (Vector2 pt in xz) pts.Add(pt);
+                foreach (Vector2 pt in yz) pts.Add(pt);
+
+                foreach (Vector2 point in pts)
+                {
+                    DrawPoint(sb, new Vector2i(point), new Vector2i(1, 1), lineColor, sm.textureDictionary["pixel"]);
+                }
+
+                DrawPoint(sb, new Vector2i(X), new Vector2i(1, 1), edgeColor, sm.textureDictionary["pixel"]);
+                DrawPoint(sb, new Vector2i(Y), new Vector2i(1, 1), edgeColor, sm.textureDictionary["pixel"]);
+                DrawPoint(sb, new Vector2i(Z), new Vector2i(1, 1), edgeColor, sm.textureDictionary["pixel"]);
+
+                return;
+            }
+
+            // Draw the baked render target to the screen at the polygon bounding rect
+            sb.Draw(renderTarget2D, bakedRect, Color.White);
+        }
+
+        // Returns the smallest axis-aligned Rectangle that fully contains the polygon.
+        // Position (X,Y) is the top-left corner; Width/Height are the size.
+        public Rectangle GetBoundingRectangle()
+        {
+            if (vertices == null || vertices.Count == 0)
+                return Rectangle.Empty;
+
+            float minX = vertices.Min(v => v.X);
+            float minY = vertices.Min(v => v.Y);
+            float maxX = vertices.Max(v => v.X);
+            float maxY = vertices.Max(v => v.Y);
+
+            int x = (int)Math.Floor(minX);
+            int y = (int)Math.Floor(minY);
+            int width = (int)Math.Ceiling(maxX - minX);
+            int height = (int)Math.Ceiling(maxY - minY);
+
+            // Ensure non-negative dimensions
+            width = Math.Max(0, width);
+            height = Math.Max(0, height);
+
+            return new Rectangle(x, y, width, height);
+        }
     }
 
     internal class Camera
@@ -333,6 +464,7 @@ namespace sevenFramework
     {
         public void Load(SceneManager sm);
         public void Update(float dt);
+        public void Bake(SpriteBatch sb);
         public void Draw(SpriteBatch sb);
     }
 
@@ -341,11 +473,19 @@ namespace sevenFramework
         public IScene scene;
         public Dictionary<String, Texture2D> textureDictionary;
         public float fps;
-        public DebugManager debugManager;
 
-        public SceneManager(ContentManager contentManager, IScene scene, SpriteFont debugFont)
+        public MathHelper mathHelper;
+        public DebugManager debugManager;
+        public ContentManager contentManager;
+        public GraphicsDevice graphicsDevice;
+
+        public SceneManager(ContentManager contentManager, GraphicsDevice graphicsDevice, IScene scene, SpriteFont debugFont)
         {
+            this.contentManager = contentManager;
+            this.graphicsDevice = graphicsDevice;
+            this.mathHelper = new();
             debugManager = new(this, debugFont, Color.White);
+
             LoadTextures(contentManager);
             LoadScene(scene);
         }
@@ -370,10 +510,14 @@ namespace sevenFramework
             this.scene.Update(dt);
         }
 
+        public void BakeScene(SpriteBatch sb)
+        {
+            this.scene.Bake(sb);
+        }
+
         public void DrawScene(SpriteBatch sb)
         {
             this.scene.Draw(sb);
-            this.debugManager.DrawAllMethods(sb);
         }
     }
 

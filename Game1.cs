@@ -44,7 +44,7 @@ namespace sevenFramework
             debugFont = Content.Load<SpriteFont>("font");
 
             scene = new();
-            sm = new(Content, scene, debugFont);
+            sm = new(Content, GraphicsDevice, scene, debugFont);
         }
 
         protected override void Update(GameTime gameTime)
@@ -61,9 +61,8 @@ namespace sevenFramework
         {
             GraphicsDevice.Clear(Color.CornflowerBlue);
 
-            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            sm.BakeScene(_spriteBatch);
             sm.DrawScene(_spriteBatch);
-            _spriteBatch.End();
 
             base.Draw(gameTime);
         }
