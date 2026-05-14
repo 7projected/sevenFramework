@@ -48,6 +48,17 @@ namespace sevenFramework
             vertices = new() { X, Y, Z };
         }
 
+        public IEnumerable<(Vector2 a, Vector2 b)> GetEdges()
+        {
+            for (int i = 0; i < vertices.Count; i++)
+            {
+                yield return (
+                    vertices[i],
+                    vertices[(i + 1) % vertices.Count]
+                );
+            }
+        }
+
         // Returns the smallest axis-aligned Rectangle that fully contains the polygon.
         // Position (X,Y) is the top-left corner; Width/Height are the size.
         public Rectangle GetBoundingRectangle()
