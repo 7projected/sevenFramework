@@ -43,39 +43,9 @@ namespace sevenFramework
             SetVertices(X, Y, Z);
         }
 
-        public void DrawPoint(SpriteBatch sb, Vector2i pos, Vector2i size, Color color, Texture2D texture, int thickness = 4)
-        {
-            sb.Draw(texture, new Rectangle(new Point(pos.X - thickness / 2, pos.Y - thickness / 2), new Point(thickness, thickness)), color);
-        }
-
         public void SetVertices(Vector2 X, Vector2 Y, Vector2 Z)
         {
             vertices = new() { X, Y, Z };
-        }
-
-        public void Draw(SpriteBatch sb, SceneManager sm, MathHelper mh, 
-                            int lineSteps, Color edgeColor, Color lineColor)
-        {
-            // Fallback to per-point drawing (original behavior) if bake failed
-            List<Vector2> xy = mh.PointsBetween(X, Y, lineSteps);
-            List<Vector2> xz = mh.PointsBetween(X, Z, lineSteps);
-            List<Vector2> yz = mh.PointsBetween(Y, Z, lineSteps);
-
-            List<Vector2> pts = new();
-            foreach (Vector2 pt in xy) pts.Add(pt);
-            foreach (Vector2 pt in xz) pts.Add(pt);
-            foreach (Vector2 pt in yz) pts.Add(pt);
-
-            foreach (Vector2 point in pts)
-            {
-                DrawPoint(sb, new Vector2i(point), new Vector2i(1, 1), lineColor, sm.textureDictionary["pixel"]);
-            }
-
-            DrawPoint(sb, new Vector2i(X), new Vector2i(1, 1), edgeColor, sm.textureDictionary["pixel"]);
-            DrawPoint(sb, new Vector2i(Y), new Vector2i(1, 1), edgeColor, sm.textureDictionary["pixel"]);
-            DrawPoint(sb, new Vector2i(Z), new Vector2i(1, 1), edgeColor, sm.textureDictionary["pixel"]);
-
-            return;
         }
 
         // Returns the smallest axis-aligned Rectangle that fully contains the polygon.
@@ -400,7 +370,7 @@ namespace sevenFramework
             this.contentManager = contentManager;
             this.graphicsDevice = graphicsDevice;
             this.mathHelper = new();
-            debugManager = new(this, debugFont, Color.White);
+            debugManager = new(this, debugFont, Color.White, Color.Red, Color.Blue, Color.Green);
 
             LoadTextures(contentManager);
             LoadScene(scene);
@@ -437,34 +407,40 @@ namespace sevenFramework
         }
     }
 
-    internal class DebugRect
-    {
-        public Color color;
-        public Rectangle rect;
-
-        public DebugRect(Color color, Rectangle rect)
-        {
-            this.color = color;
-            this.rect = rect;
-        }
-    }
-
     internal class DebugManager
     {
         private SceneManager sm;
+
         private List<String> debugTextList = new();
-        private List<DebugRect> debugRectList = new();
+        private List<Rectangle> debugRectList = new();
+        private List<Polygon> debugPolygonList = new();
 
         public SpriteFont font;
         public bool visible = true;
-        public Color fontColor;
 
-        public DebugManager(SceneManager sm, SpriteFont font, Color color = default)
+        private Color fontColor;
+        private Color rectangleColor;
+        private Color polygonLineColor;
+        private Color polygonEdgeColor;
+
+        public DebugManager(SceneManager sm, SpriteFont font,
+            Color fontColor, Color rectangleColor, Color polygonLineColor, Color polygonEdgeColor)
         {
             this.sm = sm;
             this.font = font;
-            if (color == default) fontColor = Color.White;
-            else fontColor = color;
+
+            this.fontColor = fontColor;
+            this.rectangleColor = rectangleColor;
+            this.polygonLineColor = polygonLineColor;
+            this.polygonEdgeColor = polygonEdgeColor;
+        }
+
+        public void SetColors(Color fontColor, Color rectangleColor, Color polygonLineColor, Color polygonEdgeColor)
+        {
+            this.fontColor = fontColor;
+            this.rectangleColor = rectangleColor;
+            this.polygonLineColor = polygonLineColor;
+            this.polygonEdgeColor = polygonEdgeColor;
         }
 
         public void AddTextToScreen(String str)
@@ -472,20 +448,57 @@ namespace sevenFramework
             this.debugTextList.Add(str);
         }
 
-        public void AddRectToScreen(DebugRect rect)
+        public void AddRectToScreen(Rectangle rect)
         {
             this.debugRectList.Add(rect);
         }
 
-        public void DrawText(SpriteBatch sb)
+        public void AddPolygonToScreen(Polygon polygon)
         {
-            foreach (String str in debugTextList.ToList())
+            this.debugPolygonList.Add(polygon);
+        }
+
+
+        public void DrawPoint(SpriteBatch sb, Vector2i pos, Vector2i size, Color color, Texture2D texture, int thickness = 4)
+        {
+            sb.Draw(texture, new Rectangle(new Point(pos.X - thickness / 2, pos.Y - thickness / 2), new Point(thickness, thickness)), color);
+        }
+
+        public void DrawPolygon(SpriteBatch sb, Polygon polygon, int lineSteps, Color lineColor, Color edgeColor)
+        {
+            MathHelper mh = sm.mathHelper;
+            Vector2 X = polygon.X;
+            Vector2 Y = polygon.Y;
+            Vector2 Z = polygon.Z;
+
+            // Fallback to per-point drawing (original behavior) if bake failed
+            List<Vector2> xy = mh.PointsBetween(X, Y, lineSteps);
+            List<Vector2> xz = mh.PointsBetween(X, Z, lineSteps);
+            List<Vector2> yz = mh.PointsBetween(Y, Z, lineSteps);
+
+            List<Vector2> pts = new();
+            foreach (Vector2 pt in xy) pts.Add(pt);
+            foreach (Vector2 pt in xz) pts.Add(pt);
+            foreach (Vector2 pt in yz) pts.Add(pt);
+
+            foreach (Vector2 point in pts)
             {
-                sb.DrawString(font, str, new(0, 0), fontColor);
+                DrawPoint(sb, new Vector2i(point), new Vector2i(1, 1), lineColor, sm.textureDictionary["pixel"]);
             }
 
-            debugTextList.Clear();
+            DrawPoint(sb, new Vector2i(X), new Vector2i(1, 1), edgeColor, sm.textureDictionary["pixel"]);
+            DrawPoint(sb, new Vector2i(Y), new Vector2i(1, 1), edgeColor, sm.textureDictionary["pixel"]);
+            DrawPoint(sb, new Vector2i(Z), new Vector2i(1, 1), edgeColor, sm.textureDictionary["pixel"]);
         }
+
+        public void DrawAllPolygons(SpriteBatch sb, int lineSteps = 25)
+        {
+            foreach(Polygon polygon in debugPolygonList)
+            {
+                DrawPolygon(sb, polygon, lineSteps, polygonLineColor, polygonEdgeColor);
+            }
+        }
+
 
         public void DrawRect(SpriteBatch sb, Rectangle rect, int outlineWidth, Color color)
         {
@@ -499,23 +512,35 @@ namespace sevenFramework
             sb.Draw(sm.textureDictionary["pixel"], new Rectangle(rect.X + rect.Width - outlineWidth, rect.Y, outlineWidth, rect.Height), color);
         }
 
-
         public void DrawAllRects(SpriteBatch sb)
         {
-            foreach (DebugRect rect in debugRectList.ToList())
+            foreach (Rectangle rect in debugRectList.ToList())
             {
-                DrawRect(sb, rect.rect, 2, rect.color);
+                DrawRect(sb, rect, 2, rectangleColor);
             }
             debugRectList.Clear();
         }
 
-        public void DrawAllMethods(SpriteBatch sb)
+
+        public void DrawAllShapes(SpriteBatch sb)
         {
             if (visible)
             {
+                DrawAllPolygons(sb);
                 DrawAllRects(sb);
-                DrawText(sb);
+            }
+        }
 
+        public void DrawAllText(SpriteBatch sb)
+        {
+            if (visible)
+            {
+                foreach (String str in debugTextList.ToList())
+                {
+                    sb.DrawString(font, str, new(0, 0), fontColor);
+                }
+
+                debugTextList.Clear();
             }
         }
     }

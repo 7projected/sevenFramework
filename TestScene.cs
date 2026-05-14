@@ -32,7 +32,8 @@ namespace sevenFramework
         public void Update(float dt)
         {
             time += dt;
-            sm.debugManager.AddRectToScreen(new(Color.Red, testPlayerRect));
+            sm.debugManager.AddRectToScreen(testPlayerRect);
+            sm.debugManager.AddPolygonToScreen(testPolygon);
 
             KeyboardState ks = Keyboard.GetState();
 
@@ -57,9 +58,8 @@ namespace sevenFramework
             sm.debugManager.AddTextToScreen($"Draw:{(int)time} @ {(int)sm.fps}");
             sprite.Draw(sb);
 
-            testPolygon.Draw(sb, sm, mh, 50, Color.Red, Color.Green);
-
-            sm.debugManager.DrawText(sb);
+            sm.debugManager.DrawAllShapes(sb);
+            sm.debugManager.DrawAllText(sb);
             sb.End();
         }
     }

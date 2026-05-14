@@ -59,7 +59,7 @@ namespace sevenFramework
 
         protected override void Draw(GameTime gameTime)
         {
-            GraphicsDevice.Clear(Color.CornflowerBlue);
+            GraphicsDevice.Clear(Color.Transparent);
 
             sm.BakeScene(_spriteBatch);
             sm.DrawScene(_spriteBatch);
