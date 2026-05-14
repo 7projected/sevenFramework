@@ -21,14 +21,14 @@ namespace sevenFramework
         Polygon testPolygon = new(
             new List<Vector2>
             {
-                new(0, 0),
-                new(50, 100),
-                new(0, 200)
-            },
+                new(-25, -100),
+                new( 25,    0),
+                new(-25,  100)
+            }   ,
 
             new Transform(
                 new(100, 100),
-                new(50, 200),
+                new(1000, 200),
                 new(0)
             )
         );
@@ -62,6 +62,8 @@ namespace sevenFramework
             if (ks.IsKeyDown(Keys.A)) dir.X -= 1;
             if (ks.IsKeyDown(Keys.D)) dir.X += 1;
 
+            testPolygon.transform.rotation.degrees += dir.X * dt * 50;
+
             /*
             playerPrim_X.transform.position += (dir * speed * dt);
             playerPrim_X.transform.position += (dir * speed * dt);
@@ -71,7 +73,7 @@ namespace sevenFramework
             if (playerPrim_Y.Intersects(testPolygon)) sm.debugManager.AddPolygonToScreen(Color.Red, playerPrim_Y);
             else sm.debugManager.AddPolygonToScreen(Color.Green, playerPrim_Y);
             */
-            }
+        }
 
         public void Bake(SpriteBatch sb)
         {
