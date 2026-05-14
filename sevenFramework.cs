@@ -15,10 +15,6 @@ namespace sevenFramework
     internal class Polygon // Work on SAT collision tommroww for platformer, and slopes
     {
         public List<Vector2> vertices;
-        public List<Vector2> lastVertices;
-        public RenderTarget2D renderTarget2D;
-        private bool needsBaking = false;
-        private Rectangle bakedRect;
 
         public Vector2 X
         {
@@ -55,111 +51,31 @@ namespace sevenFramework
         public void SetVertices(Vector2 X, Vector2 Y, Vector2 Z)
         {
             vertices = new() { X, Y, Z };
-            needsBaking = true;
-        }
-
-        private void BakeTexture(SpriteBatch sb, SceneManager sm, MathHelper mh, int lineSteps, Color edgeColor, Color lineColor)
-        {
-            Rectangle boundingRect = GetBoundingRectangle();
-
-            int width = Math.Max(1, boundingRect.Width);
-            int height = Math.Max(1, boundingRect.Height);
-
-            // Dispose previous render target if any
-            renderTarget2D?.Dispose();
-            renderTarget2D = new RenderTarget2D(sm.graphicsDevice, width, height);
-
-            // Set render target and draw points into it
-            sm.graphicsDevice.SetRenderTarget(renderTarget2D);
-            sm.graphicsDevice.Clear(Color.Transparent);
-
-            // Begin a SpriteBatch targeted at the render target
-            sb.Begin(samplerState: SamplerState.PointClamp, blendState: BlendState.AlphaBlend, sortMode: SpriteSortMode.Deferred);
-
-            List<Vector2> xy = mh.PointsBetween(X, Y, lineSteps);
-            List<Vector2> xz = mh.PointsBetween(X, Z, lineSteps);
-            List<Vector2> yz = mh.PointsBetween(Y, Z, lineSteps);
-
-            // Draw line points (relative to bounding rect)
-            foreach (Vector2 pt in xy)
-            {
-                int px = (int)Math.Round(pt.X) - boundingRect.X;
-                int py = (int)Math.Round(pt.Y) - boundingRect.Y;
-                if (px >= 0 && px < width && py >= 0 && py < height)
-                    sb.Draw(sm.textureDictionary["pixel"], new Rectangle(px, py, 1, 1), lineColor);
-            }
-            foreach (Vector2 pt in xz)
-            {
-                int px = (int)Math.Round(pt.X) - boundingRect.X;
-                int py = (int)Math.Round(pt.Y) - boundingRect.Y;
-                if (px >= 0 && px < width && py >= 0 && py < height)
-                    sb.Draw(sm.textureDictionary["pixel"], new Rectangle(px, py, 1, 1), lineColor);
-            }
-            foreach (Vector2 pt in yz)
-            {
-                int px = (int)Math.Round(pt.X) - boundingRect.X;
-                int py = (int)Math.Round(pt.Y) - boundingRect.Y;
-                if (px >= 0 && px < width && py >= 0 && py < height)
-                    sb.Draw(sm.textureDictionary["pixel"], new Rectangle(px, py, 1, 1), lineColor);
-            }
-
-            // Draw vertices with edgeColor (overwrites)
-            Vector2[] corners = new Vector2[] { X, Y, Z };
-            foreach (Vector2 v in corners)
-            {
-                int px = (int)Math.Round(v.X) - boundingRect.X;
-                int py = (int)Math.Round(v.Y) - boundingRect.Y;
-                if (px >= 0 && px < width && py >= 0 && py < height)
-                    sb.Draw(sm.textureDictionary["pixel"], new Rectangle(px, py, 1, 1), edgeColor);
-            }
-
-            sb.End();
-
-            // Reset render target to back buffer
-            sm.graphicsDevice.SetRenderTarget(null);
-
-            // Save baked rect and lastVertices for change detection
-            bakedRect = boundingRect;
-            lastVertices = vertices.Select(v => new Vector2(v.X, v.Y)).ToList();
-        }
-
-        public void Bake(SpriteBatch  sb, SceneManager sm)
-        {
-            if (!needsBaking)
-            {
-                BakeTexture(sb, sm, sm.mathHelper, 50, Color.Red, Color.Green);
-            }
         }
 
         public void Draw(SpriteBatch sb, SceneManager sm, MathHelper mh, 
                             int lineSteps, Color edgeColor, Color lineColor)
         {
-            if (renderTarget2D == null)
+            // Fallback to per-point drawing (original behavior) if bake failed
+            List<Vector2> xy = mh.PointsBetween(X, Y, lineSteps);
+            List<Vector2> xz = mh.PointsBetween(X, Z, lineSteps);
+            List<Vector2> yz = mh.PointsBetween(Y, Z, lineSteps);
+
+            List<Vector2> pts = new();
+            foreach (Vector2 pt in xy) pts.Add(pt);
+            foreach (Vector2 pt in xz) pts.Add(pt);
+            foreach (Vector2 pt in yz) pts.Add(pt);
+
+            foreach (Vector2 point in pts)
             {
-                // Fallback to per-point drawing (original behavior) if bake failed
-                List<Vector2> xy = mh.PointsBetween(X, Y, lineSteps);
-                List<Vector2> xz = mh.PointsBetween(X, Z, lineSteps);
-                List<Vector2> yz = mh.PointsBetween(Y, Z, lineSteps);
-
-                List<Vector2> pts = new();
-                foreach (Vector2 pt in xy) pts.Add(pt);
-                foreach (Vector2 pt in xz) pts.Add(pt);
-                foreach (Vector2 pt in yz) pts.Add(pt);
-
-                foreach (Vector2 point in pts)
-                {
-                    DrawPoint(sb, new Vector2i(point), new Vector2i(1, 1), lineColor, sm.textureDictionary["pixel"]);
-                }
-
-                DrawPoint(sb, new Vector2i(X), new Vector2i(1, 1), edgeColor, sm.textureDictionary["pixel"]);
-                DrawPoint(sb, new Vector2i(Y), new Vector2i(1, 1), edgeColor, sm.textureDictionary["pixel"]);
-                DrawPoint(sb, new Vector2i(Z), new Vector2i(1, 1), edgeColor, sm.textureDictionary["pixel"]);
-
-                return;
+                DrawPoint(sb, new Vector2i(point), new Vector2i(1, 1), lineColor, sm.textureDictionary["pixel"]);
             }
 
-            // Draw the baked render target to the screen at the polygon bounding rect
-            sb.Draw(renderTarget2D, bakedRect, Color.White);
+            DrawPoint(sb, new Vector2i(X), new Vector2i(1, 1), edgeColor, sm.textureDictionary["pixel"]);
+            DrawPoint(sb, new Vector2i(Y), new Vector2i(1, 1), edgeColor, sm.textureDictionary["pixel"]);
+            DrawPoint(sb, new Vector2i(Z), new Vector2i(1, 1), edgeColor, sm.textureDictionary["pixel"]);
+
+            return;
         }
 
         // Returns the smallest axis-aligned Rectangle that fully contains the polygon.

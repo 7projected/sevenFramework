@@ -48,7 +48,6 @@ namespace sevenFramework
 
         public void Bake(SpriteBatch sb)
         {
-            testPolygon.Bake(sb, sm);
         }
 
         public void Draw(SpriteBatch sb)
