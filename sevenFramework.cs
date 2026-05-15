@@ -7,11 +7,168 @@ using System.Collections.Generic;
 using System.ComponentModel.Design.Serialization;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using static System.Net.Mime.MediaTypeNames;
+using System.IO;
 
 namespace sevenFramework
 {
+    internal record Tile(List<Polygon> polygons, Texture2D texture);
+
+    internal class TileMap
+    {
+        SceneManager sm;
+        public Dictionary<int, Tile> tileset;
+        public RenderTarget2D renderTarget;
+        public bool baked;
+
+        public Vector2 position;
+        public Vector2i tileScale;
+        public Color color;
+
+        public int Width { get; private set; }
+        public int Height { get; private set; }
+        public int TileWidth { get; private set; }
+        public int TileHeight { get; private set; }
+        public List<TiledLayer> Layers { get; private set; }
+
+        public TileMap(SceneManager sm, string path, Dictionary<int, Tile> tileset, Vector2 position, Vector2i tileScale, Color color)
+        {
+            this.sm = sm;
+            string json = File.ReadAllText(path);
+            this.baked = false;
+
+            this.position = position;
+            this.tileScale = tileScale;
+            this.color = color;
+
+            JsonSerializerOptions options = new()
+            {
+                PropertyNameCaseInsensitive = true
+            };
+
+            TiledMapData mapData = JsonSerializer.Deserialize<TiledMapData>(json, options);
+            Width = mapData.width;
+            Height = mapData.height;
+            TileWidth = mapData.tilewidth / tileScale.X;
+            TileHeight = mapData.tileheight / tileScale.Y;
+            Layers = mapData.layers;
+
+            SetTileset(tileset);
+            renderTarget = new(sm.graphicsDevice, Width * TileWidth, Height * TileHeight);
+        }
+
+        public void SetTileset(Dictionary<int, Tile> tileset)
+        {
+            this.tileset = tileset;
+        }
+
+        public int GetTile(int x, int y, int layerIndex = 0)
+        {
+            TiledLayer layer = Layers[layerIndex];
+
+            return layer.data[y * layer.width + x];
+        }
+
+        public void BakeIfNeeded(SpriteBatch sb)
+        {
+            if (!baked) BakeAllLayers(sb);
+            else return;
+        }
+
+        public void BakeAllLayers(SpriteBatch sb)
+        {
+            for (int i = 0; i < Layers.Count; i++)
+            {
+                BakeRenderTarget(sb, i);
+            }
+        }
+
+        public void BakeRenderTarget(SpriteBatch sb, int layerIndex = 0)
+        {
+            sm.graphicsDevice.SetRenderTarget(renderTarget);
+            sb.GraphicsDevice.Clear(Color.Transparent);
+            sb.Begin(samplerState: SamplerState.PointClamp);
+
+            for (int x = 0; x < Width; x++)
+            {
+                for (int y = 0; y < Height; y++)
+                {
+                    int tile = GetTile(x, y, layerIndex);
+
+                    if (tileset.ContainsKey(tile))
+                    {
+                        sb.Draw(tileset[tile].texture, new Rectangle((int)x * TileWidth, (int)y * TileHeight, TileWidth, TileHeight), Color.White);
+                    }
+                }
+            }
+
+            sb.End();
+        }
+
+        public List<Polygon> GetCollisionMap()
+        {
+            List<Polygon> polygons = new();
+
+            for (int l = 0; l < Layers.Count; l++)
+            {
+                for (int x = 0; x < Width; x++)
+                {
+                    for (int y = 0; y < Height; y++)
+                    {
+                        int tile = GetTile(x, y, l);
+                        if (tileset.ContainsKey(tile))
+                        {
+                            foreach (Polygon poly in tileset[tile].polygons)
+                            {
+                                List<Vector2> vertices = poly.GetVertices(); // Unscaled normalized size;
+
+                                for (int i = 0; i < vertices.Count; i++)
+                                {
+                                    vertices[i] = new(vertices[i].X * TileWidth, vertices[i].Y * TileHeight);
+                                }
+
+                                polygons.Add(new(vertices, new(new(x * TileWidth, y * TileHeight), new(TileWidth, TileHeight), new(0, 0))));
+                            }
+                        }
+                    }
+                }
+            }
+
+            return polygons;
+        }
+
+        public void Draw(SpriteBatch sb)
+        {
+            Vector2i mapSize = new(Width * TileWidth, Height * TileHeight);
+            sb.Draw(renderTarget, new Rectangle(position.ToPoint(), mapSize.ToPoint()), color);
+        }
+    }
+
+    internal class TiledMapData
+    {
+        public int width { get; set; }
+        public int height { get; set; }
+
+        public int tilewidth { get; set; }
+        public int tileheight { get; set; }
+
+        public List<TiledLayer> layers { get; set; }
+    }
+
+    internal class TiledLayer
+    {
+        public List<int> data { get; set; }
+
+        public int width { get; set; }
+        public int height { get; set; }
+
+        public string name { get; set; }
+        public string type { get; set; }
+    }
+
+
     internal class Polygon
     {
         // LOCAL vertices (relative to origin)
@@ -22,6 +179,8 @@ namespace sevenFramework
         public float Bottom => GetVertices().Max(v => v.Y);
         public float Left => GetVertices().Min(v => v.X);
         public float Right => GetVertices().Max(v => v.X);
+        public float Width => Right - Left;
+        public float Height => Top - Bottom;
 
         public Polygon(List<Vector2> vertices, Transform transform)
         {
@@ -236,6 +395,10 @@ namespace sevenFramework
         public float Bottom;
         public float Left;
         public float Right;
+        public float Width => transform.size.X;
+        public float Height => transform.size.Y;
+        public float HalfWidth => Width / 2;
+        public float HalfHeight => Height / 2;
 
         public SquarePrimitive(Transform transform)
         {

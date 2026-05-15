@@ -16,43 +16,37 @@ namespace sevenFramework
         SceneManager sm;
         float time = 0;
 
-        Sprite sprite;
-        Polygon testPolygon = new(
-            new List<Vector2>
-            {
-                new(-25, -100),
-                new( 25,    0),
-                new(-25,  100)
-            }   ,
-
-            new Transform(
-                new(100, 100),
-                new(1000, 200),
-                new(0)
-            )
-        );
         SquarePrimitive playerPrimitive = new(new(new(0, 0), new(100, 100), new(0, 0)));
+        SquarePrimitive oppPrimitive = new(new(new(500, 500), new(200, 200), new(0, 0)));
 
         public void Load(SceneManager sm)
         {
             this.sm = sm;
             mh = new();
-            sprite = new(sm.textureDictionary["kenny"], new(new(0, 0), new(128, 128), new(0, 0)));
         }
 
         public void Update(float dt)
         {
             time += dt;
-            sm.debugManager.AddPolygonToScreen(Color.Green, testPolygon);
-            testPolygon.transform.rotation.degrees += dt * 50;
+
             MovePlayerPrimitives(dt);
+
+            List<SquarePrimitive> l = new() { playerPrimitive, oppPrimitive };
+
+            foreach(SquarePrimitive prim in l)
+            {
+                foreach(Polygon poly in prim.polygons)
+                {
+                    sm.debugManager.AddPolygonToScreen(Color.Green, poly);
+                }
+            }
         }
 
         public void MovePlayerPrimitives(float dt)
         {
             Vector2 dir = new(0, 0);
             int rotDir = 0;
-            int speed = 100;
+            int speed = 500;
             KeyboardState ks = Keyboard.GetState();
 
             if (ks.IsKeyDown(Keys.Q)) rotDir -= 1;
@@ -65,15 +59,23 @@ namespace sevenFramework
             playerPrimitive.transform.position += dir * speed * dt;
             playerPrimitive.transform.rotation.degrees += rotDir * speed * dt;
             
-            foreach(Polygon polygon in playerPrimitive.polygons)
+            if (playerPrimitive.Intersects(oppPrimitive.polygons[0]) || playerPrimitive.Intersects(oppPrimitive.polygons[1]))
             {
-                if (polygon.Intersects(testPolygon))
+                if (dir.X > 0)
                 {
-                    sm.debugManager.AddPolygonToScreen(Color.Red, polygon);
+                    playerPrimitive.transform.position.X = oppPrimitive.Left - playerPrimitive.HalfWidth; 
                 }
-                else
+                if (dir.X < 0)
                 {
-                    sm.debugManager.AddPolygonToScreen(Color.Green, polygon);
+                    playerPrimitive.transform.position.X = oppPrimitive.Right + playerPrimitive.HalfWidth;
+                }
+                if (dir.Y > 0)
+                {
+                    playerPrimitive.transform.position.Y = oppPrimitive.Top - playerPrimitive.HalfHeight;
+                }
+                if (dir.Y < 0)
+                {
+                    playerPrimitive.transform.position.Y = oppPrimitive.Bottom + playerPrimitive.HalfHeight;
                 }
             }
         }
