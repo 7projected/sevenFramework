@@ -14,12 +14,33 @@ using System.IO;
 
 namespace sevenFramework
 {
-    internal record Tile(List<Polygon> polygons, Texture2D texture);
+    internal record Tile(List<Polygon> polygons, Texture2D texture, bool collisionCullable);
+
+    internal class TileSet
+    {
+        public Polygon topLeftPolygon = new(new(0, 0), new(1, 0), new(0, 1), new(new(0, 0), new(1, 1), new(0, 0)));
+        public Polygon topRightPolygon = new(new(0, 0), new(1, 0), new(1, 1), new(new(0, 0), new(1, 1), new(0, 0)));
+        public Polygon bottomLeftPolygon = new(new(0, 0), new(0, 1), new(1, 1), new(new(0, 0), new(1, 1), new(0, 0)));
+        public Polygon bottomRightPolygon = new(new(1, 1), new(1, 0), new(0, 1), new(new(0, 0), new(1, 1), new(0, 0)));
+
+        public Dictionary<int, Tile> dict;
+
+        public TileSet(Dictionary<int, Tile>? tileSet = null)
+        {
+            if (tileSet == null) dict = new();
+            else dict = tileSet;
+        }
+
+        public void AddTile(int index, List<Polygon> polygons, Texture2D texture, bool collisionCullable)
+        {
+            dict.Add(index, new(polygons, texture, collisionCullable));
+        }
+    }
 
     internal class TileMap
     {
         SceneManager sm;
-        public Dictionary<int, Tile> tileset;
+        public TileSet tileset;
         public RenderTarget2D renderTarget;
         public bool baked;
 
@@ -33,7 +54,7 @@ namespace sevenFramework
         public int TileHeight { get; private set; }
         public List<TiledLayer> Layers { get; private set; }
 
-        public TileMap(SceneManager sm, string path, Dictionary<int, Tile> tileset, Vector2 position, Vector2i tileScale, Color color)
+        public TileMap(SceneManager sm, string path, TileSet tileset, Vector2 position, Vector2i tileScale, Color color)
         {
             this.sm = sm;
             string json = File.ReadAllText(path);
@@ -59,7 +80,7 @@ namespace sevenFramework
             renderTarget = new(sm.graphicsDevice, Width * TileWidth, Height * TileHeight);
         }
 
-        public void SetTileset(Dictionary<int, Tile> tileset)
+        public void SetTileset(TileSet tileset)
         {
             this.tileset = tileset;
         }
@@ -97,9 +118,9 @@ namespace sevenFramework
                 {
                     int tile = GetTile(x, y, layerIndex);
 
-                    if (tileset.ContainsKey(tile))
+                    if (tileset.dict.ContainsKey(tile))
                     {
-                        sb.Draw(tileset[tile].texture, new Rectangle((int)x * TileWidth, (int)y * TileHeight, TileWidth, TileHeight), Color.White);
+                        sb.Draw(tileset.dict[tile].texture, new Rectangle((int)x * TileWidth, (int)y * TileHeight, TileWidth, TileHeight), Color.White);
                     }
                 }
             }
@@ -117,19 +138,43 @@ namespace sevenFramework
                 {
                     for (int y = 0; y < Height; y++)
                     {
-                        int tile = GetTile(x, y, l);
-                        if (tileset.ContainsKey(tile))
+                        int tileInt = GetTile(x, y, l);
+                        if (tileset.dict.ContainsKey(tileInt))
                         {
-                            foreach (Polygon poly in tileset[tile].polygons)
+                            Tile tile = tileset.dict[tileInt];
+
+                            bool addCollision;
+
+                            if (!tile.collisionCullable)
                             {
-                                List<Vector2> vertices = poly.GetVertices(); // Unscaled normalized size;
+                                addCollision = true;
+                            }
+                            else
+                            {
+                                bool topSolid = y > 0 && GetTile(x, y - 1) != 0;
+                                bool bottomSolid = y < Height - 1 && GetTile(x, y + 1) != 0;
+                                bool leftSolid = x > 0 && GetTile(x - 1, y) != 0;
+                                bool rightSolid = x < Width - 1 && GetTile(x + 1, y) != 0;
 
-                                for (int i = 0; i < vertices.Count; i++)
+                                bool fullySurrounded =
+                                    topSolid && bottomSolid && leftSolid && rightSolid;
+
+                                addCollision = !fullySurrounded;
+                            }
+
+                            if (addCollision)
+                            {
+                                foreach (Polygon poly in tileset.dict[tileInt].polygons)
                                 {
-                                    vertices[i] = new(vertices[i].X * TileWidth, vertices[i].Y * TileHeight);
-                                }
+                                    List<Vector2> vertices = poly.GetVertices(); // Unscaled normalized size;
 
-                                polygons.Add(new(vertices, new(new(x * TileWidth, y * TileHeight), new(TileWidth, TileHeight), new(0, 0))));
+                                    for (int i = 0; i < vertices.Count; i++)
+                                    {
+                                        vertices[i] = new(vertices[i].X * TileWidth, vertices[i].Y * TileHeight);
+                                    }
+
+                                    polygons.Add(new(vertices, new(new(x * TileWidth, y * TileHeight), new(TileWidth, TileHeight), new(0, 0))));
+                                }
                             }
                         }
                     }
@@ -174,13 +219,18 @@ namespace sevenFramework
         // LOCAL vertices (relative to origin)
         public List<Vector2> localVertices;
         public Transform transform;
+        public List<Vector2> globalVertices
+        {
+            get
+            {
+                return GetVertices();
+            }
+        }
 
         public float Top => GetVertices().Min(v => v.Y);
         public float Bottom => GetVertices().Max(v => v.Y);
         public float Left => GetVertices().Min(v => v.X);
         public float Right => GetVertices().Max(v => v.X);
-        public float Width => Right - Left;
-        public float Height => Top - Bottom;
 
         public Polygon(List<Vector2> vertices, Transform transform)
         {
@@ -383,7 +433,7 @@ namespace sevenFramework
             }
             set
             {
-                foreach(Polygon polygon in polygons)
+                foreach (Polygon polygon in polygons)
                 {
                     polygon.transform = value;
                     _transform = value;
@@ -395,10 +445,6 @@ namespace sevenFramework
         public float Bottom;
         public float Left;
         public float Right;
-        public float Width => transform.size.X;
-        public float Height => transform.size.Y;
-        public float HalfWidth => Width / 2;
-        public float HalfHeight => Height / 2;
 
         public SquarePrimitive(Transform transform)
         {
@@ -446,10 +492,10 @@ namespace sevenFramework
             Left = polygons[0].Left;
             Right = polygons[1].Right;
         }
-    
+
         public bool Intersects(Polygon polygon)
         {
-            foreach(Polygon p in polygons)
+            foreach (Polygon p in polygons)
             {
                 if (p.Intersects(polygon)) return true;
             }
@@ -459,7 +505,7 @@ namespace sevenFramework
 
     internal class Camera
     {
-        private RenderTarget2D renderTarget;
+        public RenderTarget2D renderTarget;
         private int width;
         private int height;
         private GraphicsDevice graphics;
@@ -534,7 +580,7 @@ namespace sevenFramework
 
         public float DegToRad(float degrees) => (degrees * ((float)Math.PI / 180));
         public float RadToDeg(float radians) => (radians * (180 / (float)Math.PI));
-    
+
         public Vector2 PerpendicularVector(Vector2 edge)
         {
             return new Vector2(-edge.Y, edge.X);
@@ -689,7 +735,7 @@ namespace sevenFramework
         public Vector2 position;
         public Vector2i size;
         public Rotation rotation;
-    
+
         public Transform(Vector2 position, Vector2i size, Rotation rotation)
         {
             this.position = position;
@@ -733,6 +779,54 @@ namespace sevenFramework
         }
     }
 
+    public sealed class FrameRateCounter
+    {
+        private int _frameCount;
+        private int _framesPerSecond;
+        private double _accumulatedSeconds;
+        private TimeSpan _lastTotalTime;
+        private bool _initialized;
+
+        public int CurrentFramerate => _framesPerSecond;
+        public void Reset()
+        {
+            _frameCount = 0;
+            _framesPerSecond = 0;
+            _accumulatedSeconds = 0;
+            _lastTotalTime = TimeSpan.Zero;
+            _initialized = false;
+        }
+
+        public void UpdateFromDraw(GameTime gameTime)
+        {
+            if (!_initialized)
+            {
+                // Initialize reference time on first call to avoid a large initial delta.
+                _lastTotalTime = gameTime.TotalGameTime;
+                _initialized = true;
+                return;
+            }
+
+            var delta = (gameTime.TotalGameTime - _lastTotalTime).TotalSeconds;
+            _lastTotalTime = gameTime.TotalGameTime;
+
+            // Ignore pathological deltas (e.g. debugging pause or device lost)
+            if (delta <= 0 || delta > 1.0)
+            {
+                return;
+            }
+
+            _accumulatedSeconds += delta;
+            _frameCount++;
+
+            if (_accumulatedSeconds >= 1.0)
+            {
+                _framesPerSecond = _frameCount;
+                _frameCount = 0;
+                _accumulatedSeconds -= 1.0;
+            }
+        }
+    }
 
     internal interface IScene
     {
@@ -746,18 +840,22 @@ namespace sevenFramework
     {
         public IScene scene;
         public Dictionary<String, Texture2D> textureDictionary;
-        public float fps;
 
+        public FrameRateCounter frameCounter;
         public MathHelper mathHelper;
         public DebugManager debugManager;
         public ContentManager contentManager;
         public GraphicsDevice graphicsDevice;
+
+        public float dt;
+        public GameTime gameTime;
 
         public SceneManager(ContentManager contentManager, GraphicsDevice graphicsDevice, IScene scene, SpriteFont debugFont)
         {
             this.contentManager = contentManager;
             this.graphicsDevice = graphicsDevice;
             this.mathHelper = new();
+            this.frameCounter = new();
             debugManager = new(this, debugFont);
 
             LoadTextures(contentManager);
@@ -768,8 +866,14 @@ namespace sevenFramework
         {
             textureDictionary = new();
 
-            textureDictionary.Add("pixel", cm.Load<Texture2D>("pixel"));
-            textureDictionary.Add("kenny", cm.Load<Texture2D>("kney"));
+            Texture2D pixel = new Texture2D(graphicsDevice, 1, 1); pixel.SetData(new[] { Color.White });
+            textureDictionary.Add("pixel", pixel);
+
+            textureDictionary.Add("debug_full", contentManager.Load<Texture2D>("img/debug_full"));
+            textureDictionary.Add("debug_br", contentManager.Load<Texture2D>("img/debug_angle_0"));
+            textureDictionary.Add("debug_bl", contentManager.Load<Texture2D>("img/debug_angle_1"));
+            textureDictionary.Add("debug_tr", contentManager.Load<Texture2D>("img/debug_angle_2"));
+            textureDictionary.Add("debug_tl", contentManager.Load<Texture2D>("img/debug_angle_3"));
         }
 
         public void LoadScene(IScene scene)
@@ -778,10 +882,12 @@ namespace sevenFramework
             scene.Load(this);
         }
 
-        public void UpdateScene(float dt, GameTime gametime)
+        public void UpdateScene(float dt, GameTime gt)
         {
-            fps = (int)(1f / gametime.ElapsedGameTime.TotalSeconds);
             this.scene.Update(dt);
+
+            this.dt = dt;
+            this.gameTime = gt;
         }
 
         public void BakeScene(SpriteBatch sb)
@@ -792,6 +898,7 @@ namespace sevenFramework
         public void DrawScene(SpriteBatch sb)
         {
             this.scene.Draw(sb);
+            frameCounter.UpdateFromDraw(gameTime);
         }
     }
 
@@ -841,13 +948,13 @@ namespace sevenFramework
 
         public void DrawPoint(SpriteBatch sb, Color color, Vector2 center, int size)
         {
-            sb.Draw(sm.textureDictionary["pixel"], 
+            sb.Draw(sm.textureDictionary["pixel"],
                 new Rectangle(new Point((int)center.X - size / 2, (int)center.Y - size / 2), new Point(size, size)), color);
         }
 
         public void DrawAllPoints(SpriteBatch sb)
         {
-            foreach(PointDebugPacket packet in debugPointList)
+            foreach (PointDebugPacket packet in debugPointList)
             {
                 DrawPoint(sb, packet.color, packet.center, packet.size);
             }
@@ -857,7 +964,7 @@ namespace sevenFramework
         public void DrawPolygon(SpriteBatch sb, Polygon polygon, int lineSteps, Color color)
         {
             MathHelper mh = sm.mathHelper;
-            List<Vector2> vertices = polygon.GetVertices();
+            List<Vector2> vertices = polygon.globalVertices;
             Vector2 X = vertices[0];
             Vector2 Y = vertices[1];
             Vector2 Z = vertices[2];
@@ -884,7 +991,7 @@ namespace sevenFramework
 
         public void DrawAllPolygons(SpriteBatch sb, int lineSteps = 25)
         {
-            foreach(PolygonDebugPacket packet in debugPolygonList)
+            foreach (PolygonDebugPacket packet in debugPolygonList)
             {
                 DrawPolygon(sb, packet.polygon, lineSteps, packet.color);
             }
@@ -908,7 +1015,7 @@ namespace sevenFramework
         {
             foreach (RectangleDebugPacket packet in debugRectList.ToList())
             {
-                DrawRect(sb, packet.rectangle , 2, packet.color);
+                DrawRect(sb, packet.rectangle, 2, packet.color);
             }
             debugRectList.Clear();
         }
