@@ -4,17 +4,16 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel.Design.Serialization;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
-using static System.Net.Mime.MediaTypeNames;
 using System.IO;
 
 namespace sevenFramework
 {
     internal record Tile(List<Polygon> polygons, Texture2D texture, bool collisionCullable);
+    internal record Chunk(Rectangle boundingBox, List<Polygon> polygons);
 
     internal class TileSet
     {
@@ -42,6 +41,7 @@ namespace sevenFramework
         SceneManager sm;
         public TileSet tileset;
         public RenderTarget2D renderTarget;
+        public int polygonCount;
         public bool baked;
 
         public Vector2 position;
@@ -54,7 +54,11 @@ namespace sevenFramework
         public int TileHeight { get; private set; }
         public List<TiledLayer> Layers { get; private set; }
 
-        public TileMap(SceneManager sm, string path, TileSet tileset, Vector2 position, Vector2i tileScale, Color color)
+        public List<Chunk> chunkList;
+        public List<Polygon> polygonList;
+        public int chunkWidth;
+
+        public TileMap(SceneManager sm, int chunkWidth, string path, TileSet tileset, Vector2 position, Vector2i tileScale, Color color)
         {
             this.sm = sm;
             string json = File.ReadAllText(path);
@@ -63,6 +67,7 @@ namespace sevenFramework
             this.position = position;
             this.tileScale = tileScale;
             this.color = color;
+            this.chunkWidth = chunkWidth;
 
             JsonSerializerOptions options = new()
             {
@@ -78,6 +83,8 @@ namespace sevenFramework
 
             SetTileset(tileset);
             renderTarget = new(sm.graphicsDevice, Width * TileWidth, Height * TileHeight);
+
+            LoadCollisionMap();
         }
 
         public void SetTileset(TileSet tileset)
@@ -128,9 +135,27 @@ namespace sevenFramework
             sb.End();
         }
 
-        public List<Polygon> GetCollisionMap()
+        public void LoadCollisionMap()
         {
-            List<Polygon> polygons = new();
+            polygonList = new();
+            chunkList = new();
+
+            polygonCount = 0;
+
+            // Define chunks
+            int chunkCount = (int)Math.Ceiling((double)Width / chunkWidth);
+
+            int chunkPixelWidth = chunkWidth * TileWidth;
+            int chunkPixelHeight = Height * TileHeight;
+
+            for (int i = 0; i < chunkCount; i++)
+            {
+                Vector2i chunkCoords = new(chunkPixelWidth * i, 0);
+                chunkCoords += new Vector2i(position);
+
+                Rectangle chunkRect = new(chunkCoords.X, chunkCoords.Y, chunkPixelWidth, chunkPixelHeight);
+                chunkList.Add(new(chunkRect, new()));
+            }
 
             for (int l = 0; l < Layers.Count; l++)
             {
@@ -173,15 +198,42 @@ namespace sevenFramework
                                         vertices[i] = new(vertices[i].X * TileWidth, vertices[i].Y * TileHeight);
                                     }
 
-                                    polygons.Add(new(vertices, new(new(x * TileWidth, y * TileHeight), new(TileWidth, TileHeight), new(0, 0))));
+                                    AddPolygon(new(vertices, new(new(x * TileWidth, y * TileHeight), new(TileWidth, TileHeight), new(0, 0))));
                                 }
                             }
                         }
                     }
                 }
             }
+        }
 
-            return polygons;
+        private void AddPolygon(Polygon polygon)
+        {
+            polygonCount += 1;
+            polygonList.Add(polygon);
+
+            foreach (Chunk chunk in chunkList)
+            {
+                if (polygon.GetBoundingRectangle().Intersects(chunk.boundingBox))
+                {
+                    chunk.polygons.Add(polygon);
+                }
+            }
+        }
+
+        public List<Chunk> GetIntersectingChunks(Rectangle rect)
+        {
+            List<Chunk> chunks = new();
+
+            foreach (Chunk chunk in chunkList)
+            {
+                if (chunk.boundingBox.Intersects(rect))
+                {
+                    chunks.Add(chunk);
+                }
+            }
+
+            return chunks;
         }
 
         public void Draw(SpriteBatch sb)
@@ -483,6 +535,35 @@ namespace sevenFramework
 
             this.transform = transform;
             GetEdges();
+        }
+
+        public Rectangle LoadBoundingBox()
+        {
+            float minX = float.MaxValue;
+            float minY = float.MaxValue;
+
+            float maxX = float.MinValue;
+            float maxY = float.MinValue;
+
+            foreach (Polygon poly in polygons)
+            {
+                Rectangle rect = poly.GetBoundingRectangle();
+
+                if (rect.Left < minX) minX = rect.Left;
+                if (rect.Top < minY) minY = rect.Top;
+
+                if (rect.Right > maxX) maxX = rect.Right;
+                if (rect.Bottom > maxY) maxY = rect.Bottom;
+            }
+
+            Rectangle boundingBox = new Rectangle(
+                (int)minX,
+                (int)minY,
+                (int)(maxX - minX),
+                (int)(maxY - minY)
+            );
+
+            return boundingBox;
         }
 
         private void GetEdges()
