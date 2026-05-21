@@ -56,9 +56,11 @@ namespace sevenFramework
 
         public List<Chunk> chunkList;
         public List<Polygon> polygonList;
-        public int chunkWidth;
 
-        public TileMap(SceneManager sm, int chunkWidth, string path, TileSet tileset, Vector2 position, Vector2i tileScale, Color color)
+        public int chunkWidth;
+        public int chunkHeight;
+
+        public TileMap(SceneManager sm, int chunkWidth, int chunkHeight, string path, TileSet tileset, Vector2 position, Vector2i tileScale, Color color)
         {
             this.sm = sm;
             string json = File.ReadAllText(path);
@@ -67,7 +69,9 @@ namespace sevenFramework
             this.position = position;
             this.tileScale = tileScale;
             this.color = color;
+
             this.chunkWidth = chunkWidth;
+            this.chunkHeight = chunkHeight;
 
             JsonSerializerOptions options = new()
             {
@@ -143,18 +147,22 @@ namespace sevenFramework
             polygonCount = 0;
 
             // Define chunks
-            int chunkCount = (int)Math.Ceiling((double)Width / chunkWidth);
+            int chunkCountX = (int)Math.Ceiling((double)Width / chunkWidth);
+            int chunkCountY = (int)Math.Ceiling((double)Height / chunkHeight);
 
             int chunkPixelWidth = chunkWidth * TileWidth;
-            int chunkPixelHeight = Height * TileHeight;
+            int chunkPixelHeight = chunkHeight * TileHeight;
 
-            for (int i = 0; i < chunkCount; i++)
+            for (int x = 0; x < chunkCountX; x++)
             {
-                Vector2i chunkCoords = new(chunkPixelWidth * i, 0);
-                chunkCoords += new Vector2i(position);
+                for (int y = 0; y < chunkCountY; y++)
+                {
+                    Vector2i chunkCoords = new(chunkPixelWidth * x, chunkPixelHeight * y);
+                    chunkCoords += new Vector2i(position);
 
-                Rectangle chunkRect = new(chunkCoords.X, chunkCoords.Y, chunkPixelWidth, chunkPixelHeight);
-                chunkList.Add(new(chunkRect, new()));
+                    Rectangle chunkRect = new(chunkCoords.X, chunkCoords.Y, chunkPixelWidth, chunkPixelHeight);
+                    chunkList.Add(new(chunkRect, new()));
+                }
             }
 
             for (int l = 0; l < Layers.Count; l++)
@@ -931,6 +939,9 @@ namespace sevenFramework
         public float dt;
         public GameTime gameTime;
 
+        public KeyboardState currentKeyboardState;
+        public KeyboardState previousKeyboardState;
+
         public SceneManager(ContentManager contentManager, GraphicsDevice graphicsDevice, IScene scene, SpriteFont debugFont)
         {
             this.contentManager = contentManager;
@@ -941,6 +952,24 @@ namespace sevenFramework
 
             LoadTextures(contentManager);
             LoadScene(scene);
+        }
+
+        public bool KeyJustPressed(Keys key)
+        {
+            if (currentKeyboardState.IsKeyDown(key) && !previousKeyboardState.IsKeyDown(key))
+            {
+                return true;
+            }
+            return false;
+        }
+
+        public bool KeyJustReleased(Keys key)
+        {
+            if (!currentKeyboardState.IsKeyDown(key) && previousKeyboardState.IsKeyDown(key))
+            {
+                return true;
+            }
+            return false;
         }
 
         public void LoadTextures(ContentManager cm)
@@ -965,7 +994,9 @@ namespace sevenFramework
 
         public void UpdateScene(float dt, GameTime gt)
         {
+            currentKeyboardState = Keyboard.GetState();
             this.scene.Update(dt);
+            previousKeyboardState = Keyboard.GetState();
 
             this.dt = dt;
             this.gameTime = gt;
