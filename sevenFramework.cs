@@ -643,6 +643,157 @@ namespace sevenFramework
         }
     }
 
+    internal class BasicEntity
+    {
+        public Transform transform;
+        public SquarePrimitive squarePrimitive;
+        public Vector2 velocity;
+
+        public Vector2i broadPhaseColliderTopLeftExtension = new(64, 64);
+        public Vector2i broadPhaseColliderBottomRightExtension = new(64, 64);
+
+        public BasicEntity(Transform transform)
+        {
+            this.transform = transform;
+            this.squarePrimitive = new(transform);
+            this.velocity = new(0, 0);
+        }
+
+        public void MoveAndCollide(List<Polygon> polygonList)
+        {
+            /* Broad Phase Collision:
+             *  Instead of checking every single polygon against the entity,
+             *  it uses AABB collision, which uses rectangles to check for intersections.
+             *  this helps a ton with performance since polygons and SAT collison
+             *  never intersects unless they are close enough for bounding boxes to tell.
+             *  
+             *  The only dowside ive found with using AABB then SAT is chunking,
+             *  if the entity moves to another chunk in a frame and is moving fast,
+             *  they can clip through the wall, but this is fixable easily
+             *  using a larger bounding box to check for AABB collision.
+             */
+            List<Polygon> culled = BroadPhaseCollide(polygonList);
+
+            /* Narrow Phase Collision:
+             *  This is where the magic happens. Unlike broad phase, narrow phase is way more precise
+             *  Here you can see the use of a SAT collision algorithm, 
+             *  which uses projection of all normals of a polygon/shape
+             *  and checks if the projections collide, its way more precise and malleable than AABB, 
+             *  but it is way more expensive on the system.
+             *  Thats the reason it is used sparingly compared to broad phase 
+             */
+
+            NarrowPhaseCollide(culled);
+        }
+
+        public List<Polygon> BroadPhaseCollide(List<Polygon> polygonList)
+        {
+            List<Polygon> ret = new();
+
+            Rectangle currentBoundingBox = squarePrimitive.LoadBoundingBox();
+
+            // You must expand the AABB bounding box of the entity since thats the only way to get proper culling around the entity.
+
+            // expand top-left (negative direction)
+            currentBoundingBox.X -= broadPhaseColliderTopLeftExtension.X;
+            currentBoundingBox.Y -= broadPhaseColliderTopLeftExtension.Y;
+
+            // expand size (positive direction on opposite side)
+            currentBoundingBox.Width += broadPhaseColliderTopLeftExtension.X + broadPhaseColliderBottomRightExtension.X;
+            currentBoundingBox.Height += broadPhaseColliderTopLeftExtension.Y + broadPhaseColliderBottomRightExtension.Y;
+
+            foreach (Polygon polygon in polygonList)
+            {
+                if (polygon.GetBoundingRectangle().Intersects(currentBoundingBox))
+                {
+                    ret.Add(polygon);
+                }
+            }
+
+            return ret;
+        }
+
+        private void NarrowPhaseCollide(List<Polygon> collisionList)
+        {
+            // Seperating the X and Y axis typically is better for collision.
+            // It can help with shapes sliding against eachother instead of getting stuck on eachother
+
+            XAxisNarrowPhase(collisionList);
+            YAxisNarrowPhase(collisionList);
+        }
+
+        private void XAxisNarrowPhase(List<Polygon> collisionList)
+        {
+            Transform newTrans = new(new(transform.position.X + velocity.X, transform.position.Y), transform.size, transform.rotation);
+            SquarePrimitive newPrim = new(newTrans);
+
+            bool collided = false;
+
+            foreach(Polygon polygon in collisionList)
+            {
+                if (newPrim.Intersects(polygon))
+                {
+                    collided = true;
+                    break;
+                }
+            }
+
+            if (!collided)
+            {
+                transform.position = newTrans.position;
+                squarePrimitive = new(transform);
+            }
+        }
+
+        private void YAxisNarrowPhase(List<Polygon> collisionList)
+        {
+            Transform newTrans = new(new(transform.position.X, transform.position.Y + velocity.Y), transform.size, transform.rotation);
+            SquarePrimitive newPrim = new(newTrans);
+
+            bool collided = false;
+
+            foreach (Polygon polygon in collisionList)
+            {
+                if (newPrim.Intersects(polygon))
+                {
+                    collided = true;
+                    break;
+                }
+            }
+
+            if (!collided)
+            {
+                transform.position = newTrans.position;
+                squarePrimitive = new(transform);
+            }
+        }
+    }
+
+    internal class BasicPlayer : BasicEntity
+    {
+        public int speed;
+
+        public BasicPlayer(Transform transform, int speed) : base(transform)
+        {
+            this.speed = speed;
+        }
+
+        public void Update(List<Polygon> polygonList, float dt)
+        {
+            Vector2 dir = new();
+            KeyboardState ks = Keyboard.GetState();
+
+            if (ks.IsKeyDown(Keys.A)) dir.X -= 1;
+            if (ks.IsKeyDown(Keys.D)) dir.X += 1;
+            if (ks.IsKeyDown(Keys.W)) dir.Y -= 1;
+            if (ks.IsKeyDown(Keys.S)) dir.Y += 1;
+
+            velocity = dir * speed * dt;
+
+            MoveAndCollide(polygonList);
+        }
+    }
+
     internal class Camera
     {
         public RenderTarget2D renderTarget;
