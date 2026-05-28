@@ -1,7 +1,9 @@
 ﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
+using System.Collections.Generic;
 
 namespace sevenFramework
 {
@@ -44,7 +46,17 @@ namespace sevenFramework
             debugFont = Content.Load<SpriteFont>("font");
 
             scene = new();
-            sm = new(Content, GraphicsDevice, scene, debugFont);
+            sm = new(Content, GraphicsDevice, scene, debugFont, LoadTextures);
+        }
+
+        public Dictionary<String, Texture2D> LoadTextures(GraphicsDevice gd, ContentManager cm)
+        {
+            Dictionary<String, Texture2D> tx = new();
+
+            tx.Add("kenny", cm.Load<Texture2D>("kney"));
+            tx.Add("pixel", cm.Load<Texture2D>("pixel"));
+
+            return tx;
         }
 
         protected override void Update(GameTime gameTime)

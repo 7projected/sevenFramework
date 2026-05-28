@@ -63,19 +63,19 @@ namespace sevenFramework
             {
                 if (dir.X > 0)
                 {
-                    playerPrimitive.transform.position.X = oppPrimitive.Left - playerPrimitive.HalfWidth; 
+                    playerPrimitive.transform.position.X = oppPrimitive.Left - playerPrimitive.Width/2; 
                 }
                 if (dir.X < 0)
                 {
-                    playerPrimitive.transform.position.X = oppPrimitive.Right + playerPrimitive.HalfWidth;
+                    playerPrimitive.transform.position.X = oppPrimitive.Right + playerPrimitive.Width/2;
                 }
                 if (dir.Y > 0)
                 {
-                    playerPrimitive.transform.position.Y = oppPrimitive.Top - playerPrimitive.HalfHeight;
+                    playerPrimitive.transform.position.Y = oppPrimitive.Top - playerPrimitive.Height/2;
                 }
                 if (dir.Y < 0)
                 {
-                    playerPrimitive.transform.position.Y = oppPrimitive.Bottom + playerPrimitive.HalfHeight;
+                    playerPrimitive.transform.position.Y = oppPrimitive.Bottom + playerPrimitive.Height/2;
                 }
             }
         }
@@ -88,7 +88,7 @@ namespace sevenFramework
         {
             sb.Begin(samplerState: SamplerState.PointClamp);
 
-            sm.debugManager.AddTextToScreen(new Vector2(0, 0), Color.White, $"Draw:{(int)time} @ {(int)sm.fps}");
+            sm.debugManager.AddTextToScreen(new Vector2(0, 0), Color.White, $"Draw:{(int)time} @ {(int)sm.frameCounter.CurrentFramerate}");
 
             sm.debugManager.DrawAllShapes(sb);
             sm.debugManager.DrawAllText(sb);

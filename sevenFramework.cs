@@ -34,6 +34,16 @@ namespace sevenFramework
         {
             dict.Add(index, new(polygons, texture, collisionCullable));
         }
+
+        public Tile GetTile(int index)
+        {
+            if (dict.ContainsKey(index))
+            {
+                return dict[index];
+            }
+
+            return dict[0];
+        }
     }
 
     internal class TileMap
@@ -101,6 +111,41 @@ namespace sevenFramework
             TiledLayer layer = Layers[layerIndex];
 
             return layer.data[y * layer.width + x];
+        }
+
+        public Vector2i FindTile(Tile tile, int index)
+        {
+            for (int x = 0; x < Width; x++)
+            {
+                for (int y = 0; y < Height; y++)
+                {
+                    int ti = GetTile(x, y);
+                    Tile t = tileset.GetTile(ti);
+
+                    if (t == tile)
+                    {
+                        return new(x, y);
+                    }
+                }
+            }
+            return new(0, 0);
+        }
+
+        public Vector2i FindTileByIndex(int tile, int index)
+        {
+            for (int x = 0; x < Width; x++)
+            {
+                for (int y = 0; y < Height; y++)
+                {
+                    int ti = GetTile(x, y);
+
+                    if (ti == tile)
+                    {
+                        return new(x, y);
+                    }
+                }
+            }
+            return new(0, 0);
         }
 
         public void BakeIfNeeded(SpriteBatch sb)
@@ -506,8 +551,14 @@ namespace sevenFramework
         public float Left;
         public float Right;
 
+        public float Width;
+        public float Height;
+
         public SquarePrimitive(Transform transform)
         {
+            Width = transform.size.X;
+            Height = transform.size.Y;
+
             polygons = new();
 
             float zeroX = -(transform.size.X / 2);
@@ -833,38 +884,96 @@ namespace sevenFramework
         }
     }
 
+
     internal class Sprite
     {
         public Texture2D texture;
         public Transform transform;
+        public Color color;
+        public bool flipVertical = false;
+        public bool flipHorizontal = false;
 
-        public Sprite(Texture2D texture, Transform transform)
+        public Sprite(Texture2D texture, Transform transform, Color color)
         {
             this.texture = texture ?? throw new ArgumentNullException(nameof(texture));
             this.transform = transform ?? throw new ArgumentNullException(nameof(transform));
+            this.color = color;
         }
 
         public void Draw(SpriteBatch sb)
         {
-            if (texture == null) return; // defensive; ctor already throws, but keep this safe in case of future mutation
-                                         // Protect against zero-sized textures to avoid divide-by-zero
+            if (texture == null) return;
+
             int texW = Math.Max(1, texture.Width);
             int texH = Math.Max(1, texture.Height);
 
             Vector2 origin = new Vector2(texW / 2f, texH / 2f);
-            Vector2 scale = new Vector2(transform.size.X / (float)texW, transform.size.Y / (float)texH);
+
+            Vector2 scale = new Vector2(
+                transform.size.X / (float)texW,
+                transform.size.Y / (float)texH
+            );
+
+            SpriteEffects effects = SpriteEffects.None;
+
+            if (flipHorizontal)
+                effects |= SpriteEffects.FlipHorizontally;
+
+            if (flipVertical)
+                effects |= SpriteEffects.FlipVertically;
 
             sb.Draw(
                 texture,
                 transform.position,
                 null,
-                Color.White,
+                color,
                 transform.rotation.radians,
                 origin,
                 scale,
-                SpriteEffects.None,
+                effects,
                 0f
             );
+        }
+    }
+
+
+    internal class AnimationCycle
+    {
+        public float duration;
+        public float currentTime = 0f;
+        public bool loop = true;
+        public Dictionary<float, Texture2D> textureKeyframes;
+
+        public AnimationCycle(bool loop, float duration, Dictionary<float, Texture2D> textureKeyframes)
+        {
+            this.duration = duration;
+            this.textureKeyframes = textureKeyframes;
+        }
+
+        public void Update(float dt)
+        {
+            currentTime += dt;
+
+            if (loop && currentTime > duration)
+            {
+                float overrun = currentTime - duration;
+                currentTime = overrun;
+            }
+        }
+
+        public Texture2D GetTextureFrame()
+        {
+            Texture2D currentTX = default;
+
+            foreach (KeyValuePair<float, Texture2D> kvp in textureKeyframes)
+            {
+                if (kvp.Key <= currentTime)
+                {
+                    currentTX = kvp.Value;
+                }
+            }
+
+            return currentTX;
         }
     }
 
@@ -942,7 +1051,10 @@ namespace sevenFramework
         public KeyboardState currentKeyboardState;
         public KeyboardState previousKeyboardState;
 
-        public SceneManager(ContentManager contentManager, GraphicsDevice graphicsDevice, IScene scene, SpriteFont debugFont)
+        public Func<GraphicsDevice, ContentManager, Dictionary<string, Texture2D>> LoadTextures;
+
+        public SceneManager(ContentManager contentManager, GraphicsDevice graphicsDevice, IScene scene, SpriteFont debugFont,
+            Func<GraphicsDevice, ContentManager, Dictionary<string, Texture2D>> loadTexturesFunction)
         {
             this.contentManager = contentManager;
             this.graphicsDevice = graphicsDevice;
@@ -950,7 +1062,8 @@ namespace sevenFramework
             this.frameCounter = new();
             debugManager = new(this, debugFont);
 
-            LoadTextures(contentManager);
+            LoadTextures = loadTexturesFunction;
+            textureDictionary = LoadTextures.Invoke(graphicsDevice, contentManager);
             LoadScene(scene);
         }
 
@@ -970,20 +1083,6 @@ namespace sevenFramework
                 return true;
             }
             return false;
-        }
-
-        public void LoadTextures(ContentManager cm)
-        {
-            textureDictionary = new();
-
-            Texture2D pixel = new Texture2D(graphicsDevice, 1, 1); pixel.SetData(new[] { Color.White });
-            textureDictionary.Add("pixel", pixel);
-
-            textureDictionary.Add("debug_full", contentManager.Load<Texture2D>("img/debug_full"));
-            textureDictionary.Add("debug_br", contentManager.Load<Texture2D>("img/debug_angle_0"));
-            textureDictionary.Add("debug_bl", contentManager.Load<Texture2D>("img/debug_angle_1"));
-            textureDictionary.Add("debug_tr", contentManager.Load<Texture2D>("img/debug_angle_2"));
-            textureDictionary.Add("debug_tl", contentManager.Load<Texture2D>("img/debug_angle_3"));
         }
 
         public void LoadScene(IScene scene)
