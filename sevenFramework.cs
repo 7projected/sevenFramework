@@ -729,7 +729,7 @@ namespace sevenFramework
 
             bool collided = false;
 
-            foreach(Polygon polygon in collisionList)
+            foreach (Polygon polygon in collisionList)
             {
                 if (newPrim.Intersects(polygon))
                 {
@@ -1087,7 +1087,6 @@ namespace sevenFramework
         }
     }
 
-
     internal class AnimationCycle
     {
         public float duration;
@@ -1127,6 +1126,46 @@ namespace sevenFramework
             return currentTX;
         }
     }
+
+    internal class AnimationManager
+    {
+        public Dictionary<String, AnimationCycle> animationCycles;
+        public String currentAnimationName;
+
+        public AnimationManager()
+        {
+            animationCycles = new();
+            // name, loop, duration, dictionary<float, texture2d>
+        }
+
+        public AnimationCycle? GetAnimationCycle()
+        {
+            if (!animationCycles.ContainsKey(currentAnimationName)) return null;
+            return animationCycles[currentAnimationName];
+        }
+
+        public bool SetAnimation(String name)
+        {
+            currentAnimationName = name;
+
+            if (animationCycles.ContainsKey(currentAnimationName)) return true;
+            else return false;
+        }
+
+        public Texture2D? GetCurrentAnimationFrame()
+        {
+            if (!animationCycles.ContainsKey(currentAnimationName)) return null;
+            return animationCycles[currentAnimationName].GetTextureFrame();
+        }
+
+
+        public void AddAnimation(String name, bool loop, float duration, Dictionary<float, Texture2D> textureKeyframes)
+        {
+            animationCycles.Add(name, new(loop, duration, textureKeyframes));
+        }
+        public void UpdateAnimation(float dt) { GetAnimationCycle().Update(dt); }
+    }
+
 
     public sealed class FrameRateCounter
     {
