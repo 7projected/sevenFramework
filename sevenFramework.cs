@@ -16,11 +16,6 @@ namespace sevenFramework
     internal record Tile(List<Polygon> polygons, Texture2D texture, bool cullable, string collisionLayer);
     internal record Chunk(Rectangle boundingBox, Dictionary<String, List<Polygon>> collisionLayers);
 
-    /*To do
-     * switch tile maps to use collision maps instead of strictly List<polygon>
-     */
-
-
     internal class CollisionMap
     {
         public Dictionary<String, List<Polygon>> collisionLayers;
@@ -968,6 +963,11 @@ namespace sevenFramework
         public float Rotation { get; set; } = 0f;
         public Vector2 Origin { get; private set; }
 
+        public int top;
+        public int bottom;
+        public int right;
+        public int left;
+
         public Camera(GraphicsDevice graphics, int width, int height)
         {
             renderTarget = new(graphics, width, height);
@@ -1014,6 +1014,20 @@ namespace sevenFramework
         public void DrawToScreen(SpriteBatch sb)
         {
             sb.Draw(renderTarget, new Rectangle(0, 0, width, height), Color.White);
+        }
+
+        public void ClampToBounds()
+        {
+            float halfWidth = width * 0.5f;
+            float halfHeight = height * 0.5f;
+
+            float minX = left + halfWidth;
+            float maxX = right - halfWidth;
+            float minY = top + halfHeight;
+            float maxY = bottom - halfHeight;
+
+            position.X = Math.Clamp(position.X, minX, maxX);
+            position.Y = Math.Clamp(position.Y, minY, maxY);
         }
     }
 
