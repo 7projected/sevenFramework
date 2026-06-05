@@ -13,8 +13,176 @@ using System.Diagnostics;
 
 namespace sevenFramework
 {
-    internal record Tile(List<Polygon> polygons, Texture2D texture, bool collisionCullable, bool collide = true, bool climb = false, bool kill = false);
-    internal record Chunk(Rectangle boundingBox, List<Polygon> polygons);
+    internal record Tile(List<Polygon> polygons, Texture2D texture, bool cullable, string collisionLayer);
+    internal record Chunk(Rectangle boundingBox, Dictionary<String, List<Polygon>> collisionLayers);
+
+    /*To do
+     * switch tile maps to use collision maps instead of strictly List<polygon>
+     */
+
+
+    internal class CollisionMap
+    {
+        public Dictionary<String, List<Polygon>> collisionLayers;
+        public List<Chunk> chunkList;
+        public int polygonCount;
+
+        public CollisionMap()
+        {
+            collisionLayers = new();
+
+            polygonCount = 0;
+            collisionLayers.Add("collide", new());
+        }
+
+        public List<Chunk> GetIntersectingChunks(Rectangle boundingBox)
+        {
+            List<Chunk> ret = new();
+
+            foreach (Chunk chunk in chunkList)
+            {
+                if (chunk.boundingBox.Intersects(boundingBox))
+                {
+                    ret.Add(chunk);
+                }
+            }
+
+            return ret;
+        }
+
+        public void BakePolygonCount()
+        {
+            polygonCount = 0;
+
+            foreach (KeyValuePair<String, List<Polygon>> kvp in collisionLayers)
+            {
+                polygonCount += kvp.Value.Count;
+            }
+        }
+
+        public void LoadChunks(int mapSizeX, int mapSizeY, int chunkWidth, int chunkHeight, int tileWidth, int tileHeight)
+        {
+            // Clear any existing chunks
+            chunkList = new List<Chunk>();
+
+            int xChunks = (int)Math.Ceiling((double)mapSizeX / chunkWidth);
+            int yChunks = (int)Math.Ceiling((double)mapSizeY / chunkHeight);
+
+            int chunkPixelWidth = (chunkWidth * tileWidth);
+            int chunkPixelHeight = (chunkHeight * tileHeight);
+
+            // Create chunks
+            for (int xChunk = 0; xChunk < xChunks; xChunk++)
+            {
+                for (int yChunk = 0; yChunk < yChunks; yChunk++)
+                {
+                    Rectangle boundingBox = new(new Point(xChunk * chunkPixelWidth, yChunk * chunkPixelHeight), new Point(chunkWidth * tileWidth, chunkHeight * tileHeight));
+                    chunkList.Add(new(boundingBox, new()));
+                }
+            }
+
+            Debug.Print($"xChunks={xChunks}, yChunks={yChunks}");
+
+            foreach (Chunk chunk in chunkList)
+            {
+                Rectangle AABB = chunk.boundingBox;
+
+                foreach (KeyValuePair<String, List<Polygon>> kvp in collisionLayers)
+                {
+                    foreach (Polygon poly in kvp.Value)
+                    {
+                        if (poly.GetBoundingRectangle().Intersects(AABB))
+                        {
+                            if (!chunk.collisionLayers.ContainsKey(kvp.Key)) chunk.collisionLayers.Add(kvp.Key, new());
+                            chunk.collisionLayers[kvp.Key].Add(poly);
+                        }
+                    }
+                }
+            }
+
+            BakePolygonCount();
+
+            Debug.Print($"Chunk count {chunkList.Count}");
+
+            foreach (Chunk chunk in chunkList)
+            {
+                Debug.Print(chunk.boundingBox.ToString());
+            }
+        }
+
+        public void AddLayer(String name, List<Polygon> polygonList)
+        {
+            if (collisionLayers.ContainsKey(name))
+            {
+                collisionLayers[name] = polygonList;
+                return;
+            }
+            collisionLayers.Add(name, polygonList);
+            BakePolygonCount();
+        }
+
+        public bool RemoveLayer(String name)
+        {
+            if (collisionLayers.ContainsKey(name))
+            {
+                collisionLayers.Remove(name);
+                BakePolygonCount();
+
+                return true;
+            }
+            return false;
+        }
+
+        public bool AddPolygonToLayer(String name, Polygon polygon)
+        {
+            if (collisionLayers.ContainsKey(name))
+            {
+                collisionLayers[name].Add(polygon);
+                BakePolygonCount();
+
+                return true;
+            }
+            return false;
+        }
+
+        public bool RemovePolygonFromLayer(String name, Polygon polygon)
+        {
+            if (collisionLayers.ContainsKey(name))
+            {
+                if (collisionLayers[name].Contains(polygon))
+                {
+                    collisionLayers[name].Remove(polygon);
+                    BakePolygonCount();
+
+                    return true;
+                }
+                return false;
+            }
+            return false;
+        }
+
+        public void SetLayer(String name, List<Polygon> polygons)
+        {
+            if (collisionLayers.ContainsKey(name))
+            {
+                collisionLayers[name].Clear();
+                foreach (Polygon poly in polygons)
+                {
+                    collisionLayers[name].Add(poly);
+                }
+            }
+            BakePolygonCount();
+        }
+
+        public List<Polygon> GetLayer(String name)
+        {
+            if (collisionLayers.ContainsKey(name))
+            {
+                return collisionLayers[name];
+            }
+            return new();
+        }
+    }
 
     internal class TileSet
     {
@@ -31,9 +199,9 @@ namespace sevenFramework
             else dict = tileSet;
         }
 
-        public void AddTile(int index, List<Polygon> polygons, Texture2D texture, bool collisionCullable, bool collide = true, bool climb = false, bool kill = false)
+        public void AddTile(int index, List<Polygon> polygons, Texture2D texture, bool cullable, string collisionLayer = "collide")
         {
-            dict.Add(index, new(polygons, texture, collisionCullable, collide, climb, kill));
+            dict.Add(index, new(polygons, texture, cullable, collisionLayer));
         }
 
         public Tile GetTile(int index)
@@ -65,8 +233,7 @@ namespace sevenFramework
         public int TileHeight { get; private set; }
         public List<TiledLayer> Layers { get; private set; }
 
-        public List<Chunk> chunkList;
-        public List<Polygon> polygonList;
+        public CollisionMap collisionMap;
 
         public int chunkWidth;
         public int chunkHeight;
@@ -83,6 +250,7 @@ namespace sevenFramework
 
             this.chunkWidth = chunkWidth;
             this.chunkHeight = chunkHeight;
+            this.collisionMap = new();
 
             JsonSerializerOptions options = new()
             {
@@ -191,29 +359,26 @@ namespace sevenFramework
 
         public void LoadCollisionMap()
         {
-            polygonList = new();
-            chunkList = new();
-
+            // Load layers into collisionmap
+            collisionMap = new();
             polygonCount = 0;
 
-            // Define chunks
-            int chunkCountX = (int)Math.Ceiling((double)Width / chunkWidth);
-            int chunkCountY = (int)Math.Ceiling((double)Height / chunkHeight);
-
-            int chunkPixelWidth = chunkWidth * TileWidth;
-            int chunkPixelHeight = chunkHeight * TileHeight;
-
-            for (int x = 0; x < chunkCountX; x++)
+            for (int l = 0; l < Layers.Count; l++)
             {
-                for (int y = 0; y < chunkCountY; y++)
+                for (int x = 0; x < Width; x++)
                 {
-                    Vector2i chunkCoords = new(chunkPixelWidth * x, chunkPixelHeight * y);
-                    chunkCoords += new Vector2i(position);
-
-                    Rectangle chunkRect = new(chunkCoords.X, chunkCoords.Y, chunkPixelWidth, chunkPixelHeight);
-                    chunkList.Add(new(chunkRect, new()));
+                    for (int y = 0; y < Height; y++)
+                    {
+                        int tileInt = GetTile(x, y, l);
+                        if (tileset.dict.ContainsKey(tileInt))
+                        {
+                            Tile tile = tileset.dict[tileInt];
+                            collisionMap.AddLayer(tile.collisionLayer, new());
+                        }
+                    }
                 }
             }
+            // CHunks are now manages in collisionmap
 
             for (int l = 0; l < Layers.Count; l++)
             {
@@ -228,16 +393,36 @@ namespace sevenFramework
 
                             bool addCollision;
 
-                            if (!tile.collisionCullable)
+                            if (!tile.cullable)
                             {
                                 addCollision = true;
                             }
                             else
                             {
-                                bool topSolid = y > 0 && GetTile(x, y - 1, l) != 0;
-                                bool bottomSolid = y < Height - 1 && GetTile(x, y + 1, l) != 0;
-                                bool leftSolid = x > 0 && GetTile(x - 1, y, l) != 0;
-                                bool rightSolid = x < Width - 1 && GetTile(x + 1, y, l) != 0;
+                                int topTile = y > 0 ? GetTile(x, y - 1, l) : 0;
+                                int bottomTile = y < Height - 1 ? GetTile(x, y + 1, l) : 0;
+                                int leftTile = x > 0 ? GetTile(x - 1, y, l) : 0;
+                                int rightTile = x < Width - 1 ? GetTile(x + 1, y, l) : 0;
+
+                                bool topSolid =
+                                    topTile != 0 &&
+                                    tileset.dict.ContainsKey(topTile) &&
+                                    tileset.dict[topTile].collisionLayer != tile.collisionLayer;
+
+                                bool bottomSolid =
+                                    bottomTile != 0 &&
+                                    tileset.dict.ContainsKey(bottomTile) &&
+                                    tileset.dict[bottomTile].collisionLayer != tile.collisionLayer;
+
+                                bool leftSolid =
+                                    leftTile != 0 &&
+                                    tileset.dict.ContainsKey(leftTile) &&
+                                    tileset.dict[leftTile].collisionLayer != tile.collisionLayer;
+
+                                bool rightSolid =
+                                    rightTile != 0 &&
+                                    tileset.dict.ContainsKey(rightTile) &&
+                                    tileset.dict[rightTile].collisionLayer != tile.collisionLayer;
 
                                 bool fullySurrounded =
                                     topSolid && bottomSolid && leftSolid && rightSolid;
@@ -256,43 +441,20 @@ namespace sevenFramework
                                         vertices[i] = new(vertices[i].X * TileWidth, vertices[i].Y * TileHeight);
                                     }
 
-                                    AddPolygon(new(vertices, new(new(x * TileWidth, y * TileHeight), new(TileWidth, TileHeight), new(0, 0))));
+                                    //AddPolygon(new(vertices, new(new(x * TileWidth, y * TileHeight), new(TileWidth, TileHeight), new(0, 0))));
+                                    collisionMap.AddPolygonToLayer(tile.collisionLayer,
+                                        new(vertices, new(new(x * TileWidth, y * TileHeight), new(TileWidth, TileHeight), new(0, 0)))
+                                        );
                                 }
                             }
                         }
                     }
                 }
             }
+
+            collisionMap.LoadChunks(Width, Height, chunkWidth, chunkHeight, TileWidth, TileHeight);
         }
 
-        private void AddPolygon(Polygon polygon)
-        {
-            polygonCount += 1;
-            polygonList.Add(polygon);
-
-            foreach (Chunk chunk in chunkList)
-            {
-                if (polygon.GetBoundingRectangle().Intersects(chunk.boundingBox))
-                {
-                    chunk.polygons.Add(polygon);
-                }
-            }
-        }
-
-        public List<Chunk> GetIntersectingChunks(Rectangle rect)
-        {
-            List<Chunk> chunks = new();
-
-            foreach (Chunk chunk in chunkList)
-            {
-                if (chunk.boundingBox.Intersects(rect))
-                {
-                    chunks.Add(chunk);
-                }
-            }
-
-            return chunks;
-        }
 
         public void Draw(SpriteBatch sb)
         {
