@@ -9,10 +9,11 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.IO;
+using System.Diagnostics;
 
 namespace sevenFramework
 {
-    internal record Tile(List<Polygon> polygons, Texture2D texture, bool collisionCullable);
+    internal record Tile(List<Polygon> polygons, Texture2D texture, bool collisionCullable, bool collide = true, bool climb = false, bool kill = false);
     internal record Chunk(Rectangle boundingBox, List<Polygon> polygons);
 
     internal class TileSet
@@ -30,9 +31,9 @@ namespace sevenFramework
             else dict = tileSet;
         }
 
-        public void AddTile(int index, List<Polygon> polygons, Texture2D texture, bool collisionCullable)
+        public void AddTile(int index, List<Polygon> polygons, Texture2D texture, bool collisionCullable, bool collide = true, bool climb = false, bool kill = false)
         {
-            dict.Add(index, new(polygons, texture, collisionCullable));
+            dict.Add(index, new(polygons, texture, collisionCullable, collide, climb, kill));
         }
 
         public Tile GetTile(int index)
@@ -55,7 +56,7 @@ namespace sevenFramework
         public bool baked;
 
         public Vector2 position;
-        public Vector2i tileScale;
+        public Vector2 tileScale;
         public Color color;
 
         public int Width { get; private set; }
@@ -70,7 +71,7 @@ namespace sevenFramework
         public int chunkWidth;
         public int chunkHeight;
 
-        public TileMap(SceneManager sm, int chunkWidth, int chunkHeight, string path, TileSet tileset, Vector2 position, Vector2i tileScale, Color color)
+        public TileMap(SceneManager sm, int chunkWidth, int chunkHeight, string path, TileSet tileset, Vector2 position, Vector2 tileScale, Color color)
         {
             this.sm = sm;
             string json = File.ReadAllText(path);
@@ -91,8 +92,8 @@ namespace sevenFramework
             TiledMapData mapData = JsonSerializer.Deserialize<TiledMapData>(json, options);
             Width = mapData.width;
             Height = mapData.height;
-            TileWidth = mapData.tilewidth / tileScale.X;
-            TileHeight = mapData.tileheight / tileScale.Y;
+            TileWidth = (int)(mapData.tilewidth * tileScale.X);
+            TileHeight = (int)(mapData.tileheight * tileScale.Y);
             Layers = mapData.layers;
 
             SetTileset(tileset);
@@ -148,6 +149,7 @@ namespace sevenFramework
             return new(0, 0);
         }
 
+
         public void BakeIfNeeded(SpriteBatch sb)
         {
             if (!baked) BakeAllLayers(sb);
@@ -156,18 +158,22 @@ namespace sevenFramework
 
         public void BakeAllLayers(SpriteBatch sb)
         {
+            sm.graphicsDevice.SetRenderTarget(renderTarget);
+            sb.GraphicsDevice.Clear(Color.Blue);
+            sb.Begin(samplerState: SamplerState.PointClamp);
+
             for (int i = 0; i < Layers.Count; i++)
             {
                 BakeRenderTarget(sb, i);
+                Debug.Print($"Baking @{i} {Layers[i].name}");
             }
+
+            baked = true;
+            sb.End();
         }
 
         public void BakeRenderTarget(SpriteBatch sb, int layerIndex = 0)
         {
-            sm.graphicsDevice.SetRenderTarget(renderTarget);
-            sb.GraphicsDevice.Clear(Color.Transparent);
-            sb.Begin(samplerState: SamplerState.PointClamp);
-
             for (int x = 0; x < Width; x++)
             {
                 for (int y = 0; y < Height; y++)
@@ -180,9 +186,8 @@ namespace sevenFramework
                     }
                 }
             }
-
-            sb.End();
         }
+
 
         public void LoadCollisionMap()
         {
@@ -229,10 +234,10 @@ namespace sevenFramework
                             }
                             else
                             {
-                                bool topSolid = y > 0 && GetTile(x, y - 1) != 0;
-                                bool bottomSolid = y < Height - 1 && GetTile(x, y + 1) != 0;
-                                bool leftSolid = x > 0 && GetTile(x - 1, y) != 0;
-                                bool rightSolid = x < Width - 1 && GetTile(x + 1, y) != 0;
+                                bool topSolid = y > 0 && GetTile(x, y - 1, l) != 0;
+                                bool bottomSolid = y < Height - 1 && GetTile(x, y + 1, l) != 0;
+                                bool leftSolid = x > 0 && GetTile(x - 1, y, l) != 0;
+                                bool rightSolid = x < Width - 1 && GetTile(x + 1, y, l) != 0;
 
                                 bool fullySurrounded =
                                     topSolid && bottomSolid && leftSolid && rightSolid;
@@ -1124,6 +1129,11 @@ namespace sevenFramework
             }
 
             return currentTX;
+        }
+
+        public void AddFrame(float time, Texture2D tx)
+        {
+            textureKeyframes.Add(time, tx);
         }
     }
 
