@@ -81,8 +81,6 @@ namespace sevenFramework
                 }
             }
 
-            Debug.Print($"xChunks={xChunks}, yChunks={yChunks}");
-
             foreach (Chunk chunk in chunkList)
             {
                 Rectangle AABB = chunk.boundingBox;
@@ -101,13 +99,6 @@ namespace sevenFramework
             }
 
             BakePolygonCount();
-
-            Debug.Print($"Chunk count {chunkList.Count}");
-
-            foreach (Chunk chunk in chunkList)
-            {
-                Debug.Print(chunk.boundingBox.ToString());
-            }
         }
 
         public void AddLayer(String name, List<Polygon> polygonList)
@@ -220,7 +211,6 @@ namespace sevenFramework
         SceneManager sm;
         public TileSet tileset;
         public RenderTarget2D renderTarget;
-        public int polygonCount;
         public bool baked;
 
         public Vector2 position;
@@ -361,7 +351,6 @@ namespace sevenFramework
         {
             // Load layers into collisionmap
             collisionMap = new();
-            polygonCount = 0;
 
             for (int l = 0; l < Layers.Count; l++)
             {
@@ -1259,22 +1248,30 @@ namespace sevenFramework
         public float duration;
         public float currentTime = 0f;
         public bool loop = true;
-        public Dictionary<float, Texture2D> textureKeyframes;
 
-        public AnimationCycle(bool loop, float duration, Dictionary<float, Texture2D> textureKeyframes)
+        // ORDERED keyframes (critical fix)
+        public SortedDictionary<float, Texture2D> textureKeyframes;
+
+        public AnimationCycle(bool loop, float duration)
         {
+            this.loop = loop;
             this.duration = duration;
-            this.textureKeyframes = textureKeyframes;
+            this.textureKeyframes = new SortedDictionary<float, Texture2D>();
         }
 
         public void Update(float dt)
         {
             currentTime += dt;
 
-            if (loop && currentTime > duration)
+            if (loop)
             {
-                float overrun = currentTime - duration;
-                currentTime = overrun;
+                // clean wrap (no pause at end)
+                currentTime %= duration;
+            }
+            else
+            {
+                if (currentTime > duration)
+                    currentTime = duration;
             }
         }
 
@@ -1282,12 +1279,12 @@ namespace sevenFramework
         {
             Texture2D currentTX = default;
 
-            foreach (KeyValuePair<float, Texture2D> kvp in textureKeyframes)
+            foreach (var kvp in textureKeyframes)
             {
-                if (kvp.Key <= currentTime)
-                {
-                    currentTX = kvp.Value;
-                }
+                if (kvp.Key > currentTime)
+                    break;
+
+                currentTX = kvp.Value;
             }
 
             return currentTX;
@@ -1333,7 +1330,12 @@ namespace sevenFramework
 
         public void AddAnimation(String name, bool loop, float duration, Dictionary<float, Texture2D> textureKeyframes)
         {
-            animationCycles.Add(name, new(loop, duration, textureKeyframes));
+            animationCycles.Add(name, new(loop, duration));
+
+            foreach (var kvp in textureKeyframes)
+            {
+                animationCycles[name].AddFrame(kvp.Key, kvp.Value);
+            }
         }
         public void UpdateAnimation(float dt) { GetAnimationCycle().Update(dt); }
     }
