@@ -2,6 +2,17 @@
 
 A custom 2D game framework built on MonoGame featuring tile-based rendering, SAT collision detection, chunk-based spatial partitioning, and a custom animation system.
 
+## Architecture Overview
+
+The engine consists of:
+
+- SceneManager (game loop and state handling)
+- TileMap (world rendering and collision generation)
+- CollisionMap (spatial partitioning and chunking)
+- BasicEntity (movement and collision system)
+- AnimationManager (animation state system)
+- Camera (world-to-screen transformation)
+
 ## Features
 
 ### Core Engine
@@ -64,30 +75,4 @@ A custom 2D game framework built on MonoGame featuring tile-based rendering, SAT
 - Bounding box visualization
 - FPS counter
 
-## Architecture Overview
 
-The engine consists of:
-
-- SceneManager (game loop and state handling)
-- TileMap (world rendering and collision generation)
-- CollisionMap (spatial partitioning and chunking)
-- BasicEntity (movement and collision system)
-- AnimationManager (animation state system)
-- Camera (world-to-screen transformation)
-
-## Requirements
-
-- MonoGame Framework
-- .NET 6 or higher
-
-## Notes
-
-This engine is in active development and is focused on custom 2D systems including collision, rendering, and animation.
-
-## Future Plans
-
-- Optional ECS architecture
-- Improved animation blending
-- Physics improvements (friction, gravity system)
-- Lighting system
-- Editor tooling support
