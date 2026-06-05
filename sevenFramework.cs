@@ -1018,8 +1018,8 @@ namespace sevenFramework
 
         public void ClampToBounds()
         {
-            float halfWidth = width * 0.5f;
-            float halfHeight = height * 0.5f;
+            float halfWidth = (width * 0.5f) / Zoom;
+            float halfHeight = (height * 0.5f) / Zoom;
 
             float minX = left + halfWidth;
             float maxX = right - halfWidth;
