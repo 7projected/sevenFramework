@@ -211,6 +211,7 @@ namespace sevenFramework
         public Vector2 position;
         public Vector2 tileScale;
         public Color color;
+        public Color backgroundColor;
 
         public int Width { get; private set; }
         public int Height { get; private set; }
@@ -223,7 +224,7 @@ namespace sevenFramework
         public int chunkWidth;
         public int chunkHeight;
 
-        public TileMap(SceneManager sm, int chunkWidth, int chunkHeight, string path, TileSet tileset, Vector2 position, Vector2 tileScale, Color color)
+        public TileMap(SceneManager sm, int chunkWidth, int chunkHeight, string path, TileSet tileset, Vector2 position, Vector2 tileScale, Color color, Color backgroundColor)
         {
             this.sm = sm;
             string json = File.ReadAllText(path);
@@ -232,6 +233,7 @@ namespace sevenFramework
             this.position = position;
             this.tileScale = tileScale;
             this.color = color;
+            this.backgroundColor = backgroundColor;
 
             this.chunkWidth = chunkWidth;
             this.chunkHeight = chunkHeight;
@@ -287,20 +289,24 @@ namespace sevenFramework
 
         public Vector2i FindTileByIndex(int tile, int index)
         {
-            for (int x = 0; x < Width; x++)
+            for (int l = 0; l < Layers.Count; l++)
             {
-                for (int y = 0; y < Height; y++)
+                for (int x = 0; x < Width; x++)
                 {
-                    int ti = GetTile(x, y);
-
-                    if (ti == tile)
+                    for (int y = 0; y < Height; y++)
                     {
-                        return new(x, y);
+                        int ti = GetTile(x, y, l);
+
+                        if (ti == tile)
+                        {
+                            return new(x, y);
+                        }
                     }
                 }
             }
             return new(0, 0);
         }
+
 
 
         public void BakeIfNeeded(SpriteBatch sb)
@@ -312,7 +318,7 @@ namespace sevenFramework
         public void BakeAllLayers(SpriteBatch sb)
         {
             sm.graphicsDevice.SetRenderTarget(renderTarget);
-            sb.GraphicsDevice.Clear(Color.Blue);
+            sb.GraphicsDevice.Clear(backgroundColor);
             sb.Begin(samplerState: SamplerState.PointClamp);
 
             for (int i = 0; i < Layers.Count; i++)
@@ -335,7 +341,8 @@ namespace sevenFramework
 
                     if (tileset.dict.ContainsKey(tile))
                     {
-                        sb.Draw(tileset.dict[tile].texture, new Rectangle((int)x * TileWidth, (int)y * TileHeight, TileWidth, TileHeight), Color.White);
+                        if (tileset.dict[tile].texture != null)
+                            sb.Draw(tileset.dict[tile].texture, new Rectangle((int)x * TileWidth, (int)y * TileHeight, TileWidth, TileHeight), Color.White);
                     }
                 }
             }
@@ -391,25 +398,28 @@ namespace sevenFramework
                                 bool topSolid =
                                     topTile != 0 &&
                                     tileset.dict.ContainsKey(topTile) &&
-                                    tileset.dict[topTile].collisionLayer != tile.collisionLayer;
+                                    tileset.dict[topTile].collisionLayer == tile.collisionLayer;
 
                                 bool bottomSolid =
                                     bottomTile != 0 &&
                                     tileset.dict.ContainsKey(bottomTile) &&
-                                    tileset.dict[bottomTile].collisionLayer != tile.collisionLayer;
+                                    tileset.dict[bottomTile].collisionLayer == tile.collisionLayer;
 
                                 bool leftSolid =
                                     leftTile != 0 &&
                                     tileset.dict.ContainsKey(leftTile) &&
-                                    tileset.dict[leftTile].collisionLayer != tile.collisionLayer;
+                                    tileset.dict[leftTile].collisionLayer == tile.collisionLayer;
 
                                 bool rightSolid =
                                     rightTile != 0 &&
                                     tileset.dict.ContainsKey(rightTile) &&
-                                    tileset.dict[rightTile].collisionLayer != tile.collisionLayer;
+                                    tileset.dict[rightTile].collisionLayer == tile.collisionLayer;
 
                                 bool fullySurrounded =
-                                    topSolid && bottomSolid && leftSolid && rightSolid;
+                                    topSolid &&
+                                    bottomSolid &&
+                                    leftSolid &&
+                                    rightSolid;
 
                                 addCollision = !fullySurrounded;
                             }
@@ -947,6 +957,22 @@ namespace sevenFramework
 
     internal class Camera
     {
+        public Vector2 localMousePosition
+        {
+            get
+            {
+                MouseState ms = Mouse.GetState();
+                return ms.Position.ToVector2();
+            }
+        }
+        public Vector2 globalMousePosition
+        {
+            get
+            {
+                return position + localMousePosition - (new Vector2(width / 2, height / 2));
+            }
+        }
+
         public RenderTarget2D renderTarget;
         private int width;
         private int height;
@@ -1197,6 +1223,51 @@ namespace sevenFramework
         public Vector2i size;
         public Rotation rotation;
 
+        public float top
+        {
+            get
+            {
+                return position.Y - (size.Y / 2);
+            }
+            set
+            {
+                position.Y = value + (size.Y / 2);
+            }
+        }
+        public float bottom
+        {
+            get
+            {
+                return position.Y + (size.Y / 2);
+            }
+            set
+            {
+                position.Y = value - (size.Y / 2);
+            }
+        }
+        public float left
+        {
+            get
+            {
+                return position.X - (size.X / 2);
+            }
+            set
+            {
+                position.X = value + (size.X / 2);
+            }
+        }
+        public float right
+        {
+            get
+            {
+                return position.X + (size.X / 2);
+            }
+            set
+            {
+                position.X = value - (size.X / 2);
+            }
+        }
+
         public Transform(Vector2 position, Vector2i size, Rotation rotation)
         {
             this.position = position;
@@ -1321,9 +1392,8 @@ namespace sevenFramework
             // name, loop, duration, dictionary<float, texture2d>
         }
 
-        public AnimationCycle? GetAnimationCycle()
+        public AnimationCycle GetAnimationCycle()
         {
-            if (!animationCycles.ContainsKey(currentAnimationName)) return null;
             return animationCycles[currentAnimationName];
         }
 
@@ -1335,9 +1405,8 @@ namespace sevenFramework
             else return false;
         }
 
-        public Texture2D? GetCurrentAnimationFrame()
+        public Texture2D GetCurrentAnimationFrame()
         {
-            if (!animationCycles.ContainsKey(currentAnimationName)) return null;
             return animationCycles[currentAnimationName].GetTextureFrame();
         }
 
@@ -1429,6 +1498,9 @@ namespace sevenFramework
         public KeyboardState currentKeyboardState;
         public KeyboardState previousKeyboardState;
 
+        public MouseState currentMouseState;
+        public MouseState previousMouseState;
+
         public Func<GraphicsDevice, ContentManager, Dictionary<string, Texture2D>> LoadTextures;
 
         public SceneManager(ContentManager contentManager, GraphicsDevice graphicsDevice, IScene scene, SpriteFont debugFont,
@@ -1463,6 +1535,46 @@ namespace sevenFramework
             return false;
         }
 
+
+
+        public bool LMBJustPressed()
+        {
+            if (currentMouseState.LeftButton == ButtonState.Pressed && previousMouseState.LeftButton == ButtonState.Released)
+            {
+                return true;
+            }
+            return false;
+        }
+
+        public bool LMBJustReleased()
+        {
+            if (currentMouseState.LeftButton == ButtonState.Released && previousMouseState.LeftButton == ButtonState.Pressed)
+            {
+                return true;
+            }
+            return false;
+        }
+
+
+        public bool RMBJustPressed()
+        {
+            if (currentMouseState.RightButton == ButtonState.Pressed && previousMouseState.RightButton == ButtonState.Released)
+            {
+                return true;
+            }
+            return false;
+        }
+
+        public bool RMBJustReleased()
+        {
+            if (currentMouseState.RightButton == ButtonState.Released && previousMouseState.RightButton == ButtonState.Pressed)
+            {
+                return true;
+            }
+            return false;
+        }
+
+
         public void LoadScene(IScene scene)
         {
             this.scene = scene;
@@ -1472,8 +1584,10 @@ namespace sevenFramework
         public void UpdateScene(float dt, GameTime gt)
         {
             currentKeyboardState = Keyboard.GetState();
+            currentMouseState = Mouse.GetState();
             this.scene.Update(dt);
             previousKeyboardState = Keyboard.GetState();
+            previousMouseState = Mouse.GetState();
 
             this.dt = dt;
             this.gameTime = gt;
